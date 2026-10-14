@@ -47,6 +47,8 @@ cd LilithPet
 npm install
 ```
 
+注意必须在 `LilithPet/` 子目录里执行——仓库根目录没有 `package.json`。
+
 ### 4. 启动
 
 macOS：
@@ -73,6 +75,20 @@ npm start
 - 右键桌宠打开菜单：可以调整大小、开关 AI 聊天、进入「AI 聊天设置」。
 - 在 AI 聊天设置里填入 OpenAI 兼容接口的 Base URL、API Key 和模型名，点"测试连接"确认可用后保存。
 - 聊天输入框在桌宠下方，回车发送。AI 配置只保存在你自己的电脑上（系统应用数据目录），不会上传。
+
+## 常见问题
+
+- `npm error code ENOENT ... Could not read package.json`：npm 跑在了错误的目录。先 `cd LilithPet`——仓库根目录没有 `package.json`。
+- npm 卡住，或报 `ETIMEDOUT` / `ECONNRESET`（常见于 `electron` 下载步骤）：部分网络直连 npm 官方源和 Electron 二进制很慢或不通。换国内镜像：
+
+  ```bash
+  npm config set registry https://registry.npmmirror.com
+  npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+  ```
+
+  然后删掉 `node_modules`，重新 `npm install`。
+- 报 `Error: Electron failed to install correctly`：与上一条同因——配好镜像，删 `node_modules` 重装。
+- Windows 报 `'npm' 不是内部或外部命令`：Node.js 没装，或装完没重开终端。安装 Node.js 18+ 后新开终端，用 `node -v` 确认。
 
 ## 说明
 
