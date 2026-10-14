@@ -89,9 +89,11 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
   then delete `node_modules` and run `npm install` again.
 - `Error: Electron failed to install correctly` — same cause as above: configure the mirror, delete `node_modules`, reinstall.
 - `'npm' is not recognized` (Windows) — Node.js is not installed, or the terminal was not reopened after installing it. Install Node.js 18+, open a new terminal, and check `node -v`.
+- The app crashes right after launch on Windows (GPU-related errors) — the launcher already disables DirectComposition to avoid this. If it still crashes, append `--no-sandbox` to the launch command: edit the last line of `Lilith 桌宠.cmd`, or run `npm start -- --no-sandbox`.
 
 ## Notes
 
 - The in-app UI is currently in Chinese.
-- Windows support is experimental: the transparent click-through window was tuned on macOS first and has not been verified on real Windows hardware yet — bug reports are welcome.
+- Windows support is experimental, but has been verified working on real Windows 11 hardware: the transparent click-through window requires a DirectComposition compatibility switch on some graphics stacks, which the app applies automatically on Windows.
+- On Windows the pet hides itself while another app is fullscreen (games, videos) and comes back when you exit fullscreen — the same behavior as on macOS.
 - Model assets (`Lilith/`) belong to the original artist. Do not use them commercially.

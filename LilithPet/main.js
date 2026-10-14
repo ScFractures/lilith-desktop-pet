@@ -2,6 +2,12 @@ const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } = require
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { spawn } = require('child_process');
+
+// Transparent windows crash the GPU process (0xC0000005) on a class of Windows
+// graphics stacks; disabling DirectComposition was the verified fix on real
+// hardware, and is harmless where it is not needed
+if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-composition');
 
 // Window sizes include ~150-260px of transparent headroom above the pet so a jump never clips her head
 const WINDOW_SIZES = { small: [270, 458], medium: [340, 560], large: [430, 725] };
@@ -410,6 +416,91 @@ function resetPosition() {
   persistPos();
 }
 
+// --- Windows: hide the pet while another app is fullscreen -------------------
+// Electron has no cross-platform API for "is another app fullscreen", so on
+// Windows a small PowerShell loop watches the foreground window and reports
+// 1/0 when it starts/ends covering its whole monitor. This matches the macOS
+// behavior, where the pet is auto-hidden while a fullscreen Space is active.
+let fsWatcher = null;
+let fsHidden = false;
+
+const FS_SCRIPT = `
+Add-Type -Namespace PetFS -Name Win -MemberDefinition @'
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+[DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
+[DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr m, ref MONITORINFO mi);
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+[StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; }
+[StructLayout(LayoutKind.Sequential)] public struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; }
+'@
+[PetFS.Win]::SetProcessDPIAware() | Out-Null
+$own = ${process.pid}
+$prev = -1
+while ($true) {
+  if (-not (Get-Process -Id $own -ErrorAction SilentlyContinue)) { break }
+  $fs = 0
+  try {
+    $h = [PetFS.Win]::GetForegroundWindow()
+    $wpid = [uint32]0
+    [PetFS.Win]::GetWindowThreadProcessId($h, [ref]$wpid) | Out-Null
+    if ($wpid -ne $own -and [PetFS.Win]::IsWindowVisible($h)) {
+      $r = New-Object 'PetFS.Win+RECT'
+      $m = New-Object 'PetFS.Win+MONITORINFO'
+      $m.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($m)
+      $hm = [PetFS.Win]::MonitorFromWindow($h, 2)
+      if ([PetFS.Win]::GetWindowRect($h, [ref]$r) -and [PetFS.Win]::GetMonitorInfo($hm, [ref]$m)) {
+        if ($r.L -le $m.rcMonitor.L + 1 -and $r.T -le $m.rcMonitor.T + 1 -and $r.R -ge $m.rcMonitor.R - 1 -and $r.B -ge $m.rcMonitor.B - 1) { $fs = 1 }
+      }
+    }
+  } catch {}
+  if ($fs -ne $prev) { [Console]::Out.WriteLine($fs); [Console]::Out.Flush(); $prev = $fs }
+  Start-Sleep -Milliseconds 1500
+}
+`;
+
+function startFullscreenWatcher() {
+  if (fsWatcher) return;
+  let p;
+  try {
+    p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', FS_SCRIPT], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch (e) {
+    return;
+  }
+  fsWatcher = p;
+  p.on('error', () => { fsWatcher = null; });
+  p.on('exit', () => { fsWatcher = null; });
+  let buf = '';
+  p.stdout.setEncoding('utf8');
+  p.stdout.on('data', (chunk) => {
+    buf += chunk;
+    const lines = buf.split(/\r?\n/);
+    buf = lines.pop();
+    for (const line of lines) {
+      if (line === '1') setFullscreenHidden(true);
+      else if (line === '0') setFullscreenHidden(false);
+    }
+  });
+}
+
+function setFullscreenHidden(on) {
+  if (!win || win.isDestroyed()) return;
+  if (on) {
+    if (!petVisible()) return;
+    fsHidden = true;
+    win.hide();
+  } else {
+    if (!fsHidden) return;
+    fsHidden = false;
+    if (!petVisible()) {
+      win.showInactive();
+      win.setAlwaysOnTop(true, 'screen-saver');
+    }
+  }
+}
+
 function trayIconPath(name) {
   return path.join(__dirname, 'assets', name);
 }
@@ -761,6 +852,7 @@ app.whenReady().then(() => {
   loadCfg();
   createWindow();
   buildTray();
+  if (process.platform === 'win32' && !TEST_MODE) startFullscreenWatcher();
   startFall(0, 0);
   win.webContents.once('did-finish-load', () => {
     send('pet-event', 'land', { speed: 0.15 });
@@ -791,4 +883,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('before-quit', () => { persistPos(); });
+app.on('before-quit', () => {
+  persistPos();
+  if (fsWatcher) { fsWatcher.kill(); fsWatcher = null; }
+});

@@ -89,8 +89,10 @@ npm start
   然后删掉 `node_modules`，重新 `npm install`。
 - 报 `Error: Electron failed to install correctly`：与上一条同因——配好镜像，删 `node_modules` 重装。
 - Windows 报 `'npm' 不是内部或外部命令`：Node.js 没装，或装完没重开终端。安装 Node.js 18+ 后新开终端，用 `node -v` 确认。
+- Windows 启动即崩溃（报错含 GPU 字样）：启动器已自动禁用 DirectComposition 规避透明窗口崩溃；若仍崩溃，在启动命令末尾追加 `--no-sandbox`（编辑 `Lilith 桌宠.cmd` 最后一行，或执行 `npm start -- --no-sandbox`）。
 
 ## 说明
 
-- Windows 支持为实验性质：透明点击穿透窗口最初只在 macOS 上调校过，尚未在真实 Windows 上验证，欢迎反馈问题。
+- Windows 支持为实验性质，但已在真实 Windows 11 机器上验证可用：透明点击穿透窗口在部分显卡驱动组合下需要禁用 DirectComposition 的兼容开关，程序在 Windows 上会自动加上。
+- Windows 上其他应用全屏（游戏、视频）时，桌宠会自动隐藏，退出全屏后恢复——与 macOS 行为一致。
 - 模型文件版权归原作者所有，请勿商用。
