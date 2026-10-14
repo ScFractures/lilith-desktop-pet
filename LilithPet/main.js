@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-// 高度比宠物实际显示区域多出约 150-260px 的透明净空，保证跳跃时头顶不被窗口裁掉
+// Window sizes include ~150-260px of transparent headroom above the pet so a jump never clips her head
 const WINDOW_SIZES = { small: [270, 458], medium: [340, 560], large: [430, 725] };
 const FLOOR_INSET = 24;
 const GRAVITY = 2600;
@@ -23,7 +23,8 @@ let releaseVel = { x: 0, y: 0 };
 let fallTimer = null;
 
 const TEST_MODE = !!process.env.PET_TEST;
-// 测试实例使用独立 userData：不与正式实例抢单实例锁，也不动真实配置
+// Test instance gets its own userData dir: no single-instance lock clash with the production
+// instance, and the real config is never touched
 if (TEST_MODE) {
   const testUserData = path.join(os.tmpdir(), 'lilith-pet-test');
   fs.mkdirSync(testUserData, { recursive: true });
@@ -99,7 +100,7 @@ async function aiChatRequest(cfg, messages) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
-    // 桌宠简短对话风格：最多生成 400 token；触顶时会在下方退到最近的句末
+    // Short desktop-pet replies: cap at 400 tokens; if the cap is hit, trim back to the last sentence end below
     body: JSON.stringify({ model: cfg.model, messages, max_tokens: 400, temperature: 0.8, stream: false }),
     signal: AbortSignal.timeout(45000),
   });
@@ -113,7 +114,7 @@ async function aiChatRequest(cfg, messages) {
   if (!reply) throw new Error('返回内容为空');
   let text = String(reply).trim();
   if (choice?.finish_reason === 'length') {
-    // 达到 token 上限被强制中断：回退到最近的句末，避免显示半句话
+    // Truncated by the token cap: fall back to the nearest sentence end so half a sentence is never shown
     const m = text.match(/^[\s\S]*[。！？!?]/);
     if (m) text = m[0];
   }
@@ -235,9 +236,10 @@ function createWindow() {
   });
 
   win.setAlwaysOnTop(true, 'screen-saver');
-  // 不要调用 setVisibleOnAllWorkspaces：在当前 macOS 上，“加入所有 Space”的窗口会浮到
-  // 其他应用的全屏 Space 之上。普通窗口在进入全屏 Space 时会被系统自动隐藏、退出后恢复，
-  // 正好实现“全屏时不要出现”。（本机只有单个桌面 Space，去掉后日常行为不变）
+  // Deliberately not calling setVisibleOnAllWorkspaces: on this macOS, an "All Spaces" window
+  // floats above other apps' fullscreen Spaces. A plain window is auto-hidden while a fullscreen
+  // Space is active and restored on exit — exactly the wanted "hidden in fullscreen" behavior.
+  // (This machine has a single desktop Space, so omitting it changes nothing day to day.)
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
@@ -577,7 +579,7 @@ function runInteractionTest() {
     await shot('i_jump_apex');
     const maxHopY = await jumpProbe;
     const innerH = await js(`window.innerHeight`);
-    // 24 是 BOTTOM_INSET，0.613 是 PET_HEIGHT_FRACTION，均与 renderer/app.js 一致
+    // 24 is BOTTOM_INSET and 0.613 is PET_HEIGHT_FRACTION, both matching renderer/app.js
     const petTopPx = 24 + innerH * 0.613 * (1 + maxHopY);
     console.log('[test] jump apex:', JSON.stringify({ maxHopY: Number(maxHopY.toFixed(3)), petTopPx: Math.round(petTopPx), innerH, fits: petTopPx <= innerH - 4 }));
     send('pet-cmd', 'spin');
@@ -596,7 +598,7 @@ function runInteractionTest() {
     for (let i = 0; i < 30 && (await js(`window.__pet.mode`)) === 'walking'; i++) await wait(400);
     console.log('[test] walk-arrived mode:', await js(`window.__pet.mode`));
 
-    // --- 快速连点：空中不允许再次起跳，否则连点会叠加跳跃把头顶冲出窗口 ---
+    // --- rapid clicks: no re-jump while airborne, otherwise stacked hops push her head out of the window ---
     const rapidProbe = js(`new Promise(res => { const st = window.__pet; let mx = 0; const t0 = performance.now(); const id = setInterval(() => { if (st.hopY > mx) mx = st.hopY; if (performance.now() - t0 > 3600) { clearInterval(id); res(mx); } }, 20); })`);
     await wait(150);
     await js(`(async () => {
@@ -699,7 +701,7 @@ function runInteractionTest() {
       console.log('[test] settings window FAILED');
     }
 
-    // --- 睡觉：读系统时间（PET_TEST 覆写）+ 转身 + zzZ + 到点醒 + 手动开关 ---
+    // --- sleep: system clock (overridden in PET_TEST) + turn away + zzZ + auto-wake + manual toggle ---
     await js(`window.__pet.nowOverride = new Date(2026, 0, 1, 3, 0, 0).getTime(); 'ok'`);
     let sleepMode = '';
     for (let i = 0; i < 20; i++) {

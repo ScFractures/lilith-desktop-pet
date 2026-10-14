@@ -5,7 +5,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 const BOTTOM_INSET = 24;
 const FOV = 30;
 const PET_HEIGHT_FRACTION = 0.613;
-// 按 FOV 反推相机距离，使宠物像素高度恒为窗口高度的 PET_HEIGHT_FRACTION，窗口上方余量用于跳跃
+// Camera distance derived from FOV so the pet's pixel height stays PET_HEIGHT_FRACTION of the
+// window height; the headroom above is for jumping
 const CAM_DIST = 1 / PET_HEIGHT_FRACTION / (2 * Math.tan((FOV / 2) * (Math.PI / 180)));
 const GRAVITY = 6.4;
 const WALK_MIN = 105;
@@ -297,16 +298,16 @@ function updateBubblePos() {
   const chh = state.chatOpen ? chatboxEl.offsetHeight : 0;
   const shown = bubbleEl.classList.contains('show');
   if (shown) {
-    // 长回复限高：仅当文字真的放不下时气泡内部滚动，普通短句不出滚动条
+    // Cap long replies: scroll inside the bubble only when the text really doesn't fit; short bubbles never show a scrollbar
     bubbleTextEl.style.maxHeight = `${Math.max(80, h - chh - 46)}px`;
     bubbleEl.classList.toggle('scroll', bubbleTextEl.scrollHeight > bubbleTextEl.clientHeight + 1);
   }
   const bh = shown ? bubbleEl.offsetHeight : 0;
-  // 宠物跳到高处时锚点会超出窗口顶部，这里保底把气泡和输入框都留在窗口内
+  // When she jumps high the anchor goes above the window top; clamp so the bubble and input stay inside
   const minPy = bh + chh + (chh ? 26 : 14) + 4;
   const py = Math.max(apy, minPy);
   if (zzzEl.classList.contains('show')) {
-    // zzZ 叠在气泡上方，避免被说话气泡盖住
+    // zzZ stacks above the bubble so the speech bubble can't cover it
     const zw = zzzEl.offsetWidth;
     const zx = Math.min(Math.max(apx, zw / 2 + 6), w - zw / 2 - 6);
     zzzEl.style.left = `${zx}px`;
@@ -337,7 +338,7 @@ function spawnHeart(x, y) {
 }
 
 function hop(power = 1) {
-  // 只在着地时起跳；空中重复起跳会叠加速度，连点会把头顶顶出窗口
+  // Only jump from the ground; re-jumping mid-air stacks velocity and rapid clicks push her head out of the window
   if (state.hopY > 0 || state.hopV > 0) return;
   state.hopV = 1.9 * power;
 }
@@ -414,9 +415,9 @@ function doIdleAction() {
   }
 }
 
-// 夜晚时段（23:00–07:00，读系统时间）：闲下来就睡下——转过身背对、头顶飘 zzZ；天亮自动醒
+// Night window (23:00–07:00, system clock): when idle she lies down — turns away with zzZ overhead; wakes at dawn
 function inSleepWindow() {
-  // PET_TEST 用 nowOverride 覆写时间读数
+  // PET_TEST overrides the clock via nowOverride
   const h = (state.nowOverride ? new Date(state.nowOverride) : new Date()).getHours();
   return h >= 23 || h < 7;
 }
@@ -489,7 +490,7 @@ function update(dt, t) {
 
   const facing = state.targetYaw + state.spinExtra;
   state.yaw += shortestArc(state.yaw, facing) * Math.min(1, dt * 5.5);
-  // 归一化到 (-π, π]，避免在 π 附近因浮点误差多转一整圈
+  // Normalize to (-π, π] so float error near π can't add a full extra turn
   if (state.yaw > Math.PI) state.yaw -= Math.PI * 2;
   else if (state.yaw <= -Math.PI) state.yaw += Math.PI * 2;
 

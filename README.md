@@ -1,39 +1,42 @@
-# Lilith Desktop Pet（莉莉丝桌宠）
+# Lilith Desktop Pet
 
-一个基于 Electron 的 macOS 桌面宠物：莉莉丝漂浮在桌面上，会自己走动、发呆、聊天。支持接入任意 OpenAI 兼容 API 进行 AI 对话。
+A desktop pet for macOS, built with Electron and Three.js. Lilith floats on your desktop, wanders around on her own, idles, sleeps at night — and chats with you through any OpenAI-compatible API.
 
-## 目录结构
+[中文](README.zh-CN.md)
+
+## Contents
 
 ```
 Lilith-Desktop-Pet/
-├── LilithPet/            # Electron 应用源码（需要 npm install）
-├── Lilith 桌宠.app       # 双击启动器（需与 LilithPet 放在同一目录）
-└── Lilith/               # 3D 模型资源（FBX + 贴图）
+├── LilithPet/            # Electron app source (run npm install first)
+├── Lilith 桌宠.app       # Double-click launcher (must stay next to LilithPet/)
+└── Lilith/               # 3D model assets (FBX + textures)
 ```
 
-## 运行
+## Getting started
 
-需要先安装 [Node.js](https://nodejs.org/)（建议 18+）。
+[Node.js](https://nodejs.org/) 18+ is required.
 
 ```bash
 cd LilithPet
 npm install
 ```
 
-安装完成后：
+To launch:
 
-- 双击 `Lilith 桌宠.app` 启动（.app 会自动找到同目录下的 LilithPet）；
-- 或在 `LilithPet/` 目录下执行 `npm start`。
+- Double-click `Lilith 桌宠.app` (the bundle locates `LilithPet/` next to itself), or
+- run `npm start` inside `LilithPet/`.
 
-首次打开 `Lilith 桌宠.app` 如果被 macOS 拦截（"无法验证开发者"），在"系统设置 → 隐私与安全性"里点"仍要打开"，或右键图标选择"打开"。
+If macOS blocks the app on first launch ("unidentified developer"), open System Settings → Privacy & Security and click "Open Anyway", or right-click the app and choose Open.
 
-## 使用
+## Usage
 
-- 拖拽桌宠可以移动位置，它会随机四处走动。
-- 右键桌宠打开菜单：可以调整大小、开关 AI 聊天、进入「AI 聊天设置」。
-- 在 AI 聊天设置里填入 OpenAI 兼容接口的 Base URL、API Key 和模型名，点"测试连接"确认可用后保存。
-- 聊天输入框在桌宠下方，回车发送。AI 配置只保存在你自己的电脑上（macOS 应用支持目录），不会上传。
+- Drag the pet to move her; left alone, she walks around, idles, and occasionally talks.
+- Right-click the pet for the menu: size presets, actions (chat, pat, walk, spin, jump, greet, sleep) and AI Chat Settings.
+- Open AI Chat Settings, fill in the Base URL, API Key and model name of any OpenAI-compatible endpoint, use the test button, then save.
+- The chat input appears under the pet; press Enter to send, Escape to close. The AI config is stored locally only (under macOS Application Support), and messages go only to the endpoint you configured.
 
-## 说明
+## Notes
 
-- 模型文件版权归原作者所有，请勿商用。
+- The in-app UI is currently in Chinese.
+- Model assets (`Lilith/`) belong to the original artist. Do not use them commercially.
