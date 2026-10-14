@@ -1,6 +1,6 @@
 # Lilith Desktop Pet
 
-A desktop pet for macOS, built with Electron and Three.js. Lilith floats on your desktop, wanders around on her own, idles, sleeps at night — and chats with you through any OpenAI-compatible API.
+A desktop pet for macOS and Windows (experimental), built with Electron and Three.js. Lilith floats on your desktop, wanders around on her own, idles, sleeps at night — and chats with you through any OpenAI-compatible API.
 
 [中文](README.zh-CN.md)
 
@@ -9,7 +9,8 @@ A desktop pet for macOS, built with Electron and Three.js. Lilith floats on your
 ```
 Lilith-Desktop-Pet/
 ├── LilithPet/            # Electron app source (run npm install first)
-├── Lilith 桌宠.app       # Double-click launcher (must stay next to LilithPet/)
+├── Lilith 桌宠.app       # macOS double-click launcher (must stay next to LilithPet/)
+├── Lilith 桌宠.cmd       # Windows launcher (double-click; must stay next to LilithPet/)
 └── Lilith/               # 3D model assets (FBX + textures)
 ```
 
@@ -22,9 +23,14 @@ cd LilithPet
 npm install
 ```
 
-To launch:
+To launch on macOS:
 
 - Double-click `Lilith 桌宠.app` (the bundle locates `LilithPet/` next to itself), or
+- run `npm start` inside `LilithPet/`.
+
+To launch on Windows (experimental):
+
+- Double-click `Lilith 桌宠.cmd`, or
 - run `npm start` inside `LilithPet/`.
 
 If macOS blocks the app on first launch ("unidentified developer"), open System Settings → Privacy & Security and click "Open Anyway", or right-click the app and choose Open.
@@ -34,9 +40,10 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 - Drag the pet to move her; left alone, she walks around, idles, and occasionally talks.
 - Right-click the pet for the menu: size presets, actions (chat, pat, walk, spin, jump, greet, sleep) and AI Chat Settings.
 - Open AI Chat Settings, fill in the Base URL, API Key and model name of any OpenAI-compatible endpoint, use the test button, then save.
-- The chat input appears under the pet; press Enter to send, Escape to close. The AI config is stored locally only (under macOS Application Support), and messages go only to the endpoint you configured.
+- The chat input appears under the pet; press Enter to send, Escape to close. The AI config is stored locally only (under the OS application data directory), and messages go only to the endpoint you configured.
 
 ## Notes
 
 - The in-app UI is currently in Chinese.
+- Windows support is experimental: the transparent click-through window was tuned on macOS first and has not been verified on real Windows hardware yet — bug reports are welcome.
 - Model assets (`Lilith/`) belong to the original artist. Do not use them commercially.
