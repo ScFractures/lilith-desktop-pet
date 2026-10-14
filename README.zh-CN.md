@@ -16,17 +16,54 @@ Lilith-Desktop-Pet/
 
 ## 运行
 
-需要先安装 [Node.js](https://nodejs.org/)（建议 18+）。
+### 1. 安装 Node.js
+
+需要 Node.js 18 或更高版本——从 [nodejs.org](https://nodejs.org/) 下载安装，或用包管理器：
+
+```bash
+brew install node                  # macOS（Homebrew）
+winget install OpenJS.NodeJS.LTS   # Windows（winget）
+```
+
+安装完成后可以检查：
+
+```bash
+node -v    # 应显示 v18.x 或更高
+```
+
+### 2. 克隆本仓库
+
+```bash
+git clone https://github.com/ScFractures/lilith-desktop-pet.git
+cd lilith-desktop-pet
+```
+
+没有安装 Git？在仓库页面点 **Code → Download ZIP** 下载压缩包解压即可。
+
+### 3. 安装依赖
 
 ```bash
 cd LilithPet
 npm install
 ```
 
-安装完成后：
+### 4. 启动
 
-- macOS：双击 `Lilith 桌宠.app` 启动（.app 会自动找到同目录下的 LilithPet）；或在 `LilithPet/` 目录下执行 `npm start`。
-- Windows（实验性）：双击 `Lilith 桌宠.cmd`；或在 `LilithPet/` 目录下执行 `npm start`。
+macOS：
+
+```bash
+npm start
+```
+
+或直接双击 `Lilith 桌宠.app`（.app 会自动找到同目录下的 LilithPet）。
+
+Windows（实验性）：
+
+```bash
+npm start
+```
+
+或直接双击 `Lilith 桌宠.cmd`。
 
 首次打开 `Lilith 桌宠.app` 如果被 macOS 拦截（"无法验证开发者"），在"系统设置 → 隐私与安全性"里点"仍要打开"，或右键图标选择"打开"。
 

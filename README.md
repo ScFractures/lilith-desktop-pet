@@ -16,22 +16,54 @@ Lilith-Desktop-Pet/
 
 ## Getting started
 
-[Node.js](https://nodejs.org/) 18+ is required.
+### 1. Install Node.js
+
+Node.js 18 or newer is required — download it from [nodejs.org](https://nodejs.org/), or use a package manager:
+
+```bash
+brew install node                  # macOS (Homebrew)
+winget install OpenJS.NodeJS.LTS   # Windows (winget)
+```
+
+Check the installation:
+
+```bash
+node -v    # should print v18.x or newer
+```
+
+### 2. Clone this repository
+
+```bash
+git clone https://github.com/ScFractures/lilith-desktop-pet.git
+cd lilith-desktop-pet
+```
+
+No Git installed? On the repository page click **Code → Download ZIP**, then unzip it instead.
+
+### 3. Install dependencies
 
 ```bash
 cd LilithPet
 npm install
 ```
 
-To launch on macOS:
+### 4. Launch
 
-- Double-click `Lilith 桌宠.app` (the bundle locates `LilithPet/` next to itself), or
-- run `npm start` inside `LilithPet/`.
+On macOS:
 
-To launch on Windows (experimental):
+```bash
+npm start
+```
 
-- Double-click `Lilith 桌宠.cmd`, or
-- run `npm start` inside `LilithPet/`.
+or double-click `Lilith 桌宠.app` (the bundle locates `LilithPet/` next to itself).
+
+On Windows (experimental):
+
+```bash
+npm start
+```
+
+or double-click `Lilith 桌宠.cmd`.
 
 If macOS blocks the app on first launch ("unidentified developer"), open System Settings → Privacy & Security and click "Open Anyway", or right-click the app and choose Open.
 
