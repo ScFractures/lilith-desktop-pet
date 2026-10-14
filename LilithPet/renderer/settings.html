@@ -12,6 +12,13 @@
     background: #fbfafc;
     color: #3a3540;
   }
+  body {
+    opacity: 0;
+  }
+  body.ready {
+    opacity: 1;
+    transition: opacity 0.15s ease;
+  }
   main {
     padding: 18px 22px 20px;
   }
@@ -88,11 +95,11 @@
 </head>
 <body>
 <main>
-  <h1>Lilith AI 聊天设置</h1>
-  <p class="sub">填一个 OpenAI 兼容接口即可（DeepSeek、Kimi、GLM、OpenRouter、各种中转站都行）。Key 只保存在本机配置里（~/Library/Application Support/Lilith Pet/ai-config.json），只会发到你填写的这个地址。</p>
-  <label><span>Base URL</span><input id="baseUrl" type="text" spellcheck="false" placeholder="https://api.deepseek.com 或 https://api.openai.com/v1" /></label>
-  <label><span>API Key</span><input id="apiKey" type="password" spellcheck="false" placeholder="sk-…" /></label>
-  <label><span>模型名</span><input id="model" type="text" spellcheck="false" placeholder="deepseek-chat / gpt-4o-mini 等" /></label>
+  <h1 id="title">Lilith AI 聊天设置</h1>
+  <p class="sub" id="sub">填一个 OpenAI 兼容接口即可（DeepSeek、Kimi、GLM、OpenRouter、各种中转站都行）。Key 只保存在本机配置里（~/Library/Application Support/Lilith Pet/ai-config.json），只会发到你填写的这个地址。</p>
+  <label><span id="lblBaseUrl">Base URL</span><input id="baseUrl" type="text" spellcheck="false" placeholder="https://api.deepseek.com 或 https://api.openai.com/v1" /></label>
+  <label><span id="lblApiKey">API Key</span><input id="apiKey" type="password" spellcheck="false" placeholder="sk-…" /></label>
+  <label><span id="lblModel">模型名</span><input id="model" type="text" spellcheck="false" placeholder="deepseek-chat / gpt-4o-mini 等" /></label>
   <div class="row">
     <button id="save">保存</button>
     <button id="test" class="secondary">测试连接</button>

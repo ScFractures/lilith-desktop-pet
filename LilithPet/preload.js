@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('pet', {
   aiTest: (cfg) => ipcRenderer.invoke('ai-test', cfg),
   openAiSettings: () => ipcRenderer.send('open-ai-settings'),
   setSleeping: (v) => ipcRenderer.send('pet-sleep', !!v),
+  i18nGet: () => ipcRenderer.invoke('i18n-get'),
   on: (channel, cb) => {
     ipcRenderer.on(channel, (_e, ...args) => cb(...args));
   },

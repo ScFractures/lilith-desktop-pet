@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
+const { STRINGS, normalizeLang, langFromLocale } = require('./i18n');
 
 // Transparent windows crash the GPU process (0xC0000005) on a class of Windows
 // graphics stacks; disabling DirectComposition was the verified fix on real
@@ -18,7 +19,9 @@ const WALK_TICK = 16;
 let win = null;
 let tray = null;
 let cfgFile = null;
-const settings = { x: null, y: null, size: 'medium' };
+const settings = { x: null, y: null, size: 'medium', lang: null };
+
+const T = () => STRINGS[settings.lang] || STRINGS.zh;
 
 let dragging = false;
 let dragTimer = null;
@@ -61,6 +64,7 @@ function loadCfg() {
     Object.assign(settings, JSON.parse(fs.readFileSync(cfgFile, 'utf8')));
   } catch {}
   if (!WINDOW_SIZES[settings.size]) settings.size = 'medium';
+  settings.lang = normalizeLang(settings.lang) || langFromLocale(app.getLocale());
 }
 
 let saveTimer = null;
@@ -117,7 +121,7 @@ async function aiChatRequest(cfg, messages) {
   const data = await res.json();
   const choice = data?.choices?.[0];
   const reply = choice?.message?.content;
-  if (!reply) throw new Error('返回内容为空');
+  if (!reply) throw new Error(T().errEmptyReply);
   let text = String(reply).trim();
   if (choice?.finish_reason === 'length') {
     // Truncated by the token cap: fall back to the nearest sentence end so half a sentence is never shown
@@ -137,7 +141,7 @@ ipcMain.handle('ai-chat', async (_e, messages) => {
       : list.slice(-14);
     return { reply: await aiChatRequest(cfg, trimmed) };
   } catch (e) {
-    return { error: e.name === 'TimeoutError' ? '请求超时' : String(e.message || e) };
+    return { error: e.name === 'TimeoutError' ? T().errTimeout : String(e.message || e) };
   }
 });
 
@@ -145,7 +149,7 @@ ipcMain.handle('ai-get-config', () => loadAiConfig());
 
 ipcMain.handle('ai-save-config', (_e, cfg) => {
   const clean = normalizedAiConfig(cfg);
-  if (!clean) return { error: '配置不完整或格式不对' };
+  if (!clean) return { error: T().errConfigFormat };
   try {
     fs.writeFileSync(aiConfigPath(), JSON.stringify(clean, null, 2));
     return { ok: true };
@@ -156,11 +160,11 @@ ipcMain.handle('ai-save-config', (_e, cfg) => {
 
 ipcMain.handle('ai-test', async (_e, cfg) => {
   const c = normalizedAiConfig(cfg) || normalizedAiConfig(loadAiConfig());
-  if (!c) return { error: '配置不完整' };
+  if (!c) return { error: T().errConfigIncomplete };
   try {
-    return { reply: await aiChatRequest(c, [{ role: 'user', content: '你好' }]) };
+    return { reply: await aiChatRequest(c, [{ role: 'user', content: T().aiTestProbe }]) };
   } catch (e) {
-    return { error: e.name === 'TimeoutError' ? '请求超时' : String(e.message || e) };
+    return { error: e.name === 'TimeoutError' ? T().errTimeout : String(e.message || e) };
   }
 });
 
@@ -188,7 +192,7 @@ function openAiSettings() {
     resizable: false,
     minimizable: false,
     maximizable: false,
-    title: 'Lilith AI 聊天设置',
+    title: T().aiSettingsTitle,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -201,6 +205,21 @@ function openAiSettings() {
 }
 
 ipcMain.on('open-ai-settings', () => openAiSettings());
+
+function setLanguage(lang) {
+  if (!normalizeLang(lang) || settings.lang === lang || !cfgFile) return;
+  settings.lang = lang;
+  try { fs.writeFileSync(cfgFile, JSON.stringify(settings)); } catch {}
+  const payload = { lang, dict: T() };
+  send('i18n', payload);
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.setTitle(T().aiSettingsTitle);
+    settingsWin.webContents.send('i18n', payload);
+  }
+  if (tray) refreshTrayMenu();
+}
+
+ipcMain.handle('i18n-get', () => ({ lang: settings.lang, dict: T() }));
 
 function currentFloorY(height) {
   const b = win.getBounds();
@@ -505,35 +524,59 @@ function trayIconPath(name) {
   return path.join(__dirname, 'assets', name);
 }
 
+function languageSubmenu(onPick) {
+  const t = T();
+  return {
+    label: t.menuLanguage,
+    submenu: [
+      { code: 'zh', label: t.langZh },
+      { code: 'en', label: t.langEn },
+    ].map(({ code, label }) => ({
+      label,
+      type: 'radio',
+      checked: settings.lang === code,
+      click: () => { setLanguage(code); if (onPick) onPick(); },
+    })),
+  };
+}
+
+function trayMenuTemplate() {
+  const t = T();
+  return [
+    {
+      label: petVisible() ? t.trayHide : t.trayShow,
+      click: () => { toggleVisible(); refreshTrayMenu(); },
+    },
+    {
+      label: t.menuSize,
+      submenu: Object.entries({ small: t.sizeSmall, medium: t.sizeMedium, large: t.sizeLarge }).map(([k, v]) => ({
+        label: v,
+        type: 'radio',
+        checked: settings.size === k,
+        click: () => { applySize(k); refreshTrayMenu(); },
+      })),
+    },
+    languageSubmenu(refreshTrayMenu),
+    { label: t.trayReset, click: () => { toggleVisible(true); resetPosition(); } },
+    { label: t.menuAiSettings, click: () => openAiSettings() },
+    { type: 'separator' },
+    { label: t.menuQuit, click: () => { persistPos(); app.quit(); } },
+  ];
+}
+
+function refreshTrayMenu() {
+  if (tray) tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate()));
+}
+
 function buildTray() {
   const img = nativeImage.createFromPath(trayIconPath('trayColor.png'));
   if (img.isEmpty()) return;
   tray = new Tray(img);
   tray.setToolTip('Lilith');
-
-  const menu = () => Menu.buildFromTemplate([
-    {
-      label: petVisible() ? '隐藏 Lilith' : '显示 Lilith',
-      click: () => { toggleVisible(); tray.setContextMenu(menu()); },
-    },
-    {
-      label: '大小',
-      submenu: Object.entries({ small: '小', medium: '中', large: '大' }).map(([k, v]) => ({
-        label: v,
-        type: 'radio',
-        checked: settings.size === k,
-        click: () => { applySize(k); tray.setContextMenu(menu()); },
-      })),
-    },
-    { label: '回到右下角', click: () => { toggleVisible(true); resetPosition(); } },
-    { label: 'AI 聊天设置…', click: () => openAiSettings() },
-    { type: 'separator' },
-    { label: '退出', click: () => { persistPos(); app.quit(); } },
-  ]);
-  tray.setContextMenu(menu());
+  refreshTrayMenu();
   tray.on('click', () => {
     toggleVisible();
-    tray.setContextMenu(menu());
+    refreshTrayMenu();
   });
 }
 
@@ -586,29 +629,31 @@ ipcMain.on('set-size', (_e, size) => applySize(size));
 
 ipcMain.on('context-menu', (_e, at) => {
   if (!win) return;
+  const t = T();
   const menu = Menu.buildFromTemplate([
-    { label: '聊天…', click: () => send('pet-cmd', 'chat') },
-    { label: '摸摸头', click: () => send('pet-cmd', 'pat') },
-    { label: '走一走', click: () => send('pet-cmd', 'walk') },
-    { label: '转个圈', click: () => send('pet-cmd', 'spin') },
-    { label: '跳一跳', click: () => send('pet-cmd', 'jump') },
-    { label: '打个招呼', click: () => send('pet-cmd', 'greet') },
-    { label: petSleeping ? '叫醒她' : '去睡觉', click: () => send('pet-cmd', 'sleep-toggle') },
+    { label: t.menuChat, click: () => send('pet-cmd', 'chat') },
+    { label: t.menuPat, click: () => send('pet-cmd', 'pat') },
+    { label: t.menuWalk, click: () => send('pet-cmd', 'walk') },
+    { label: t.menuSpin, click: () => send('pet-cmd', 'spin') },
+    { label: t.menuJump, click: () => send('pet-cmd', 'jump') },
+    { label: t.menuGreet, click: () => send('pet-cmd', 'greet') },
+    { label: petSleeping ? t.menuWake : t.menuSleep, click: () => send('pet-cmd', 'sleep-toggle') },
     { type: 'separator' },
-    { label: 'AI 聊天设置…', click: () => openAiSettings() },
+    { label: t.menuAiSettings, click: () => openAiSettings() },
     { type: 'separator' },
     {
-      label: '大小',
-      submenu: Object.entries({ small: '小', medium: '中', large: '大' }).map(([k, v]) => ({
+      label: t.menuSize,
+      submenu: Object.entries({ small: t.sizeSmall, medium: t.sizeMedium, large: t.sizeLarge }).map(([k, v]) => ({
         label: v,
         type: 'radio',
         checked: settings.size === k,
         click: () => applySize(k),
       })),
     },
-    { label: '隐藏', click: () => toggleVisible(false) },
+    languageSubmenu(),
+    { label: t.menuHide, click: () => toggleVisible(false) },
     { type: 'separator' },
-    { label: '退出', click: () => { persistPos(); app.quit(); } },
+    { label: t.menuQuit, click: () => { persistPos(); app.quit(); } },
   ]);
   menu.popup({
     window: win,
@@ -631,6 +676,7 @@ function runInteractionTest() {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   (async () => {
+    setLanguage('zh');
     await wait(2600);
     console.log('[test] state idle:', await js(`JSON.stringify({mode:window.__pet.mode, ign:window.__pet.ignoreState, hover:window.__pet.hover})`));
     await shot('a_idle');
@@ -729,7 +775,7 @@ function runInteractionTest() {
         try {
           const parsed = JSON.parse(body);
           const sys = (parsed.messages || []).find((m) => m.role === 'system');
-          console.log('[test] system prompt:', sys ? `${sys.content.length} chars has莉莉丝:${sys.content.includes('莉莉丝')} has银葱之森:${sys.content.includes('银葱之森')}` : 'MISSING');
+          console.log('[test] system prompt:', sys ? `${sys.content.length} chars has莉莉丝:${sys.content.includes('莉莉丝')} hasLilith:${sys.content.includes('Lilith')} has银葱:${sys.content.includes('银葱之森')} hasScallion:${/scallion/i.test(sys.content)}` : 'MISSING');
           console.log('[test] max_tokens sent:', parsed.max_tokens);
         } catch {}
         res.setHeader('Content-Type', 'application/json');
@@ -834,6 +880,41 @@ function runInteractionTest() {
     const manualWake = await js(`window.__pet.mode`);
     console.log('[test] manual sleep toggle:', JSON.stringify({ sleep: manualSleep, wake: manualWake }));
     await js(`window.__pet.nowOverride = null; 'ok'`);
+
+    // --- language switch: live English mode ---
+    setLanguage('en');
+    await wait(400);
+    console.log('[test] lang(en) renderer:', await js(`JSON.stringify({lang: window.__pet.lang, placeholder: document.getElementById('chatinput').placeholder, htmlLang: document.documentElement.lang})`));
+    ev({ type: 'mouseMove', x: 170, y: 400 });
+    await wait(150);
+    ev({ type: 'mouseDown', x: 170, y: 400, button: 'left', clickCount: 1 });
+    ev({ type: 'mouseUp', x: 170, y: 400, button: 'left', clickCount: 1 });
+    await wait(650);
+    await js(`(() => { const i = document.getElementById('chatinput'); i.value = 'Hello'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 'sent'; })()`);
+    let enReply = '';
+    for (let i = 0; i < 24; i++) {
+      enReply = await js(`document.getElementById('bubble').textContent`);
+      if (enReply && enReply.includes('测试回复')) break;
+      await wait(250);
+    }
+    console.log('[test] lang(en) chat reply len:', enReply.length);
+    await js(`(() => { const i = document.getElementById('chatinput'); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 'closed'; })()`);
+    await wait(250);
+
+    openAiSettings();
+    await wait(800);
+    if (settingsWin && !settingsWin.isDestroyed()) {
+      console.log('[test] settings(en):', JSON.stringify(await settingsWin.webContents.executeJavaScript(`JSON.stringify({h1: document.getElementById('title').textContent, save: document.getElementById('save').textContent, modelPh: document.getElementById('model').placeholder})`)));
+      const imgEn = await settingsWin.webContents.capturePage();
+      fs.writeFileSync(path.join(outDir, 'l_settings_en.png'), imgEn.toPNG());
+      setLanguage('zh');
+      await wait(400);
+      console.log('[test] settings live switch(en->zh):', JSON.stringify(await settingsWin.webContents.executeJavaScript(`JSON.stringify({h1: document.getElementById('title').textContent})`)));
+      settingsWin.close();
+      await wait(200);
+    } else {
+      console.log('[test] settings(en) window FAILED');
+    }
 
     if (aiCfgBackup != null) fs.writeFileSync(aiConfigPath(), aiCfgBackup);
     else { try { fs.unlinkSync(aiConfigPath()); } catch {} }

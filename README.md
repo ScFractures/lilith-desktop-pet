@@ -75,6 +75,7 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 - Right-click the pet for the menu: size presets, actions (chat, pat, walk, spin, jump, greet, sleep) and AI Chat Settings.
 - Open AI Chat Settings, fill in the Base URL, API Key and model name of any OpenAI-compatible endpoint, use the test button, then save.
 - The chat input appears under the pet; press Enter to send, Escape to close. The AI config is stored locally only (under the OS application data directory), and messages go only to the endpoint you configured.
+- Everything is available in Chinese and English: switch with the Language submenu in the right-click (or tray) menu. The default follows your system language.
 
 ## Troubleshooting
 
@@ -93,7 +94,6 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 
 ## Notes
 
-- The in-app UI is currently in Chinese.
 - Windows support is experimental, but has been verified working on real Windows 11 hardware: the transparent click-through window requires a DirectComposition compatibility switch on some graphics stacks, which the app applies automatically on Windows.
 - On Windows the pet hides itself while another app is fullscreen (games, videos) and comes back when you exit fullscreen — the same behavior as on macOS.
 - Model assets (`Lilith/`) belong to the original artist. Do not use them commercially.
