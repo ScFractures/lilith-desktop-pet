@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+<title>Lilith AI 聊天设置</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    background: #fbfafc;
+    color: #3a3540;
+  }
+  main {
+    padding: 18px 22px 20px;
+  }
+  h1 {
+    font-size: 15px;
+    margin: 0 0 4px;
+  }
+  .sub {
+    font-size: 12px;
+    color: #8d8694;
+    margin: 0 0 14px;
+    line-height: 1.5;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: #6b6472;
+    margin-bottom: 10px;
+  }
+  label span {
+    display: block;
+    margin-bottom: 4px;
+  }
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid #d8d2dd;
+    background: #fff;
+    font-size: 13px;
+    font-family: inherit;
+    color: #3a3540;
+    outline: none;
+  }
+  input:focus {
+    border-color: rgba(255, 93, 126, 0.6);
+    box-shadow: 0 0 0 2px rgba(255, 93, 126, 0.14);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  button {
+    padding: 7px 16px;
+    border-radius: 9px;
+    border: none;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    background: #ff5d7e;
+    color: #fff;
+  }
+  button.secondary {
+    background: #ece7f0;
+    color: #4a4452;
+  }
+  button:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+  #status {
+    font-size: 12px;
+    color: #7b7482;
+    flex: 1;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+  #status.err { color: #d64560; }
+  #status.ok { color: #2f9e63; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lilith AI 聊天设置</h1>
+  <p class="sub">填一个 OpenAI 兼容接口即可（DeepSeek、Kimi、GLM、OpenRouter、各种中转站都行）。Key 只保存在本机配置里（~/Library/Application Support/Lilith Pet/ai-config.json），只会发到你填写的这个地址。</p>
+  <label><span>Base URL</span><input id="baseUrl" type="text" spellcheck="false" placeholder="https://api.deepseek.com 或 https://api.openai.com/v1" /></label>
+  <label><span>API Key</span><input id="apiKey" type="password" spellcheck="false" placeholder="sk-…" /></label>
+  <label><span>模型名</span><input id="model" type="text" spellcheck="false" placeholder="deepseek-chat / gpt-4o-mini 等" /></label>
+  <div class="row">
+    <button id="save">保存</button>
+    <button id="test" class="secondary">测试连接</button>
+    <span id="status"></span>
+  </div>
+</main>
+<script src="./settings.js"></script>
+</body>
+</html>

@@ -1,0 +1,2956 @@
+=== JSON START ===
+{
+ "blender_version": "5.3.0 Beta",
+ "objects": [
+  {
+   "name": "Camera",
+   "type": "CAMERA",
+   "parent": null,
+   "location": [
+    7.3589,
+    -6.9258,
+    4.9583
+   ],
+   "rotation_euler": [
+    1.1093,
+    0.0,
+    0.8149
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Light",
+   "type": "LIGHT",
+   "parent": null,
+   "location": [
+    4.0762,
+    1.0055,
+    5.9039
+   ],
+   "rotation_euler": [
+    0.6503,
+    0.0552,
+    1.8664
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "tripo_part_0",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.3379,
+    0.848,
+    0.5744
+   ],
+   "verts": 106578,
+   "polys": 210985,
+   "materials": [
+    "Material_tripo_part_0"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_1",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.2962,
+    0.5502,
+    0.369
+   ],
+   "verts": 68878,
+   "polys": 135730,
+   "materials": [
+    "Material_tripo_part_1"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_10",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0942,
+    0.2657,
+    0.2414
+   ],
+   "verts": 28172,
+   "polys": 55568,
+   "materials": [
+    "Material_tripo_part_10"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_11",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1235,
+    0.2452,
+    0.1075
+   ],
+   "verts": 19875,
+   "polys": 39336,
+   "materials": [
+    "Material_tripo_part_11"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_12",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1786,
+    0.1242,
+    0.1316
+   ],
+   "verts": 17195,
+   "polys": 33697,
+   "materials": [
+    "Material_tripo_part_12"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_13",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1228,
+    0.2438,
+    0.1079
+   ],
+   "verts": 19955,
+   "polys": 39481,
+   "materials": [
+    "Material_tripo_part_13"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_14",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.262,
+    0.1514,
+    0.3228
+   ],
+   "verts": 22870,
+   "polys": 44253,
+   "materials": [
+    "Material_tripo_part_14"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_15",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0921,
+    0.0864,
+    0.088
+   ],
+   "verts": 16986,
+   "polys": 33473,
+   "materials": [
+    "Material_tripo_part_15"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_16",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.188,
+    0.1149,
+    0.1329
+   ],
+   "verts": 14007,
+   "polys": 27221,
+   "materials": [
+    "Material_tripo_part_16"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_17",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0751,
+    0.106,
+    0.1648
+   ],
+   "verts": 12276,
+   "polys": 24159,
+   "materials": [
+    "Material_tripo_part_17"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_18",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0523,
+    0.1354,
+    0.1364
+   ],
+   "verts": 12867,
+   "polys": 25527,
+   "materials": [
+    "Material_tripo_part_18"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_19",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0523,
+    0.1356,
+    0.1362
+   ],
+   "verts": 12596,
+   "polys": 24987,
+   "materials": [
+    "Material_tripo_part_19"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_2",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.2589,
+    0.5215,
+    0.2796
+   ],
+   "verts": 57433,
+   "polys": 113437,
+   "materials": [
+    "Material_tripo_part_2"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_20",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1785,
+    0.1356,
+    0.133
+   ],
+   "verts": 13096,
+   "polys": 25495,
+   "materials": [
+    "Material_tripo_part_20"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_21",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.072,
+    0.0904,
+    0.0836
+   ],
+   "verts": 8470,
+   "polys": 16421,
+   "materials": [
+    "Material_tripo_part_21"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_22",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1079,
+    0.2485,
+    0.0941
+   ],
+   "verts": 10793,
+   "polys": 21085,
+   "materials": [
+    "Material_tripo_part_22"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_23",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1673,
+    0.2727,
+    0.1598
+   ],
+   "verts": 26039,
+   "polys": 51519,
+   "materials": [
+    "Material_tripo_part_23"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_24",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0921,
+    0.0865,
+    0.0887
+   ],
+   "verts": 16700,
+   "polys": 32884,
+   "materials": [
+    "Material_tripo_part_24"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_25",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0951,
+    0.1255,
+    0.1713
+   ],
+   "verts": 16008,
+   "polys": 30918,
+   "materials": [
+    "Material_tripo_part_25"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_26",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0753,
+    0.106,
+    0.1662
+   ],
+   "verts": 12244,
+   "polys": 24096,
+   "materials": [
+    "Material_tripo_part_26"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_27",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0878,
+    0.1138,
+    0.169
+   ],
+   "verts": 11442,
+   "polys": 22405,
+   "materials": [
+    "Material_tripo_part_27"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_28",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1087,
+    0.2481,
+    0.0934
+   ],
+   "verts": 11268,
+   "polys": 22025,
+   "materials": [
+    "Material_tripo_part_28"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_29",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.072,
+    0.0911,
+    0.084
+   ],
+   "verts": 9073,
+   "polys": 17611,
+   "materials": [
+    "Material_tripo_part_29"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_3",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.2588,
+    0.5221,
+    0.2796
+   ],
+   "verts": 57149,
+   "polys": 112894,
+   "materials": [
+    "Material_tripo_part_3"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_30",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1075,
+    0.2332,
+    0.1872
+   ],
+   "verts": 8414,
+   "polys": 16069,
+   "materials": [
+    "Material_tripo_part_30"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_31",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0841,
+    0.1037,
+    0.1425
+   ],
+   "verts": 7791,
+   "polys": 14943,
+   "materials": [
+    "Material_tripo_part_31"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_32",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0891,
+    0.1156,
+    0.1621
+   ],
+   "verts": 7891,
+   "polys": 14877,
+   "materials": [
+    "Material_tripo_part_32"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_33",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0903,
+    0.2214,
+    0.1214
+   ],
+   "verts": 6093,
+   "polys": 11673,
+   "materials": [
+    "Material_tripo_part_33"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_34",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0384,
+    0.0789,
+    0.0848
+   ],
+   "verts": 4845,
+   "polys": 9514,
+   "materials": [
+    "Material_tripo_part_34"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_35",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0702,
+    0.0979,
+    0.0862
+   ],
+   "verts": 4762,
+   "polys": 9063,
+   "materials": [
+    "Material_tripo_part_35"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_36",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0705,
+    0.0968,
+    0.0877
+   ],
+   "verts": 4784,
+   "polys": 9106,
+   "materials": [
+    "Material_tripo_part_36"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_37",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0465,
+    0.0969,
+    0.1429
+   ],
+   "verts": 4707,
+   "polys": 9010,
+   "materials": [
+    "Material_tripo_part_37"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_38",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0632,
+    0.0572,
+    0.0603
+   ],
+   "verts": 4449,
+   "polys": 8707,
+   "materials": [
+    "Material_tripo_part_38"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_39",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0633,
+    0.059,
+    0.0592
+   ],
+   "verts": 4360,
+   "polys": 8536,
+   "materials": [
+    "Material_tripo_part_39"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_4",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.3306,
+    0.6612,
+    0.3472
+   ],
+   "verts": 67854,
+   "polys": 134081,
+   "materials": [
+    "Material_tripo_part_4"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_40",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0841,
+    0.1108,
+    0.0602
+   ],
+   "verts": 4105,
+   "polys": 7930,
+   "materials": [
+    "Material_tripo_part_40"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_41",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0381,
+    0.0777,
+    0.0848
+   ],
+   "verts": 4028,
+   "polys": 7894,
+   "materials": [
+    "Material_tripo_part_41"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_42",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0947,
+    0.0775,
+    0.1273
+   ],
+   "verts": 3601,
+   "polys": 6817,
+   "materials": [
+    "Material_tripo_part_42"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_43",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0478,
+    0.0469,
+    0.0449
+   ],
+   "verts": 3426,
+   "polys": 6503,
+   "materials": [
+    "Material_tripo_part_43"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_44",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0357,
+    0.0826,
+    0.0772
+   ],
+   "verts": 3045,
+   "polys": 5818,
+   "materials": [
+    "Material_tripo_part_44"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_45",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0913,
+    0.1087,
+    0.0434
+   ],
+   "verts": 2897,
+   "polys": 5460,
+   "materials": [
+    "Material_tripo_part_45"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_46",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0358,
+    0.083,
+    0.0773
+   ],
+   "verts": 2834,
+   "polys": 5406,
+   "materials": [
+    "Material_tripo_part_46"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_47",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0828,
+    0.0762,
+    0.1007
+   ],
+   "verts": 2233,
+   "polys": 4157,
+   "materials": [
+    "Material_tripo_part_47"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_48",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1481,
+    0.2182,
+    0.2391
+   ],
+   "verts": 1919,
+   "polys": 3398,
+   "materials": [
+    "Material_tripo_part_48"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_49",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.058,
+    0.0376,
+    0.1369
+   ],
+   "verts": 1670,
+   "polys": 3127,
+   "materials": [
+    "Material_tripo_part_49"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_5",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.2427,
+    0.3281,
+    0.4077
+   ],
+   "verts": 56059,
+   "polys": 109544,
+   "materials": [
+    "Material_tripo_part_5"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_50",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0506,
+    0.091,
+    0.0561
+   ],
+   "verts": 1500,
+   "polys": 2817,
+   "materials": [
+    "Material_tripo_part_50"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_51",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0775,
+    0.0783,
+    0.0462
+   ],
+   "verts": 1322,
+   "polys": 2403,
+   "materials": [
+    "Material_tripo_part_51"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_52",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.0421,
+    0.0533,
+    0.0493
+   ],
+   "verts": 1164,
+   "polys": 2199,
+   "materials": [
+    "Material_tripo_part_52"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_6",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1679,
+    0.1605,
+    0.2466
+   ],
+   "verts": 45049,
+   "polys": 88602,
+   "materials": [
+    "Material_tripo_part_6"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_7",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.2973,
+    0.5503,
+    0.3581
+   ],
+   "verts": 67878,
+   "polys": 133552,
+   "materials": [
+    "Material_tripo_part_7"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_8",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1829,
+    0.1247,
+    0.1349
+   ],
+   "verts": 19287,
+   "polys": 37789,
+   "materials": [
+    "Material_tripo_part_8"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  },
+  {
+   "name": "tripo_part_9",
+   "type": "MESH",
+   "parent": null,
+   "location": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "rotation_euler": [
+    1.5708,
+    -0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "dimensions": [
+    0.1652,
+    0.3006,
+    0.1599
+   ],
+   "verts": 26384,
+   "polys": 52180,
+   "materials": [
+    "Material_tripo_part_9"
+   ],
+   "has_armature_modifier": false,
+   "shape_keys": false,
+   "vertex_groups": 0
+  }
+ ],
+ "actions": [],
+ "materials": [
+  {
+   "name": "Material",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "OUTPUT_MATERIAL",
+    "BSDF_PRINCIPLED"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_0",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_1",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_10",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_11",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_12",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_13",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_14",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_15",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_16",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_17",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_18",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_19",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_2",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_20",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_21",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_22",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_23",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_24",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_25",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_26",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_27",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_28",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_29",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_3",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_30",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_31",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_32",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_33",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_34",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_35",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_36",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_37",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_38",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_39",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_4",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_40",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_41",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_42",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_43",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_44",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_45",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_46",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_47",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_48",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_49",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_5",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_50",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_51",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_52",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_6",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_7",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_8",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  },
+  {
+   "name": "Material_tripo_part_9",
+   "use_nodes": true,
+   "blend_method": "HASHED",
+   "nodes": [
+    "BSDF_PRINCIPLED",
+    "OUTPUT_MATERIAL",
+    "TEX_IMAGE",
+    "UVMAP",
+    "MAPPING"
+   ]
+  }
+ ],
+ "images": [
+  {
+   "name": "Lilith_tripo_part_0_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_0_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_10_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_10_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_11_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_11_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_12_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_12_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_13_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_13_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_14_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_14_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_15_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_15_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_16_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_16_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_17_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_17_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_18_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_18_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_19_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_19_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_1_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_1_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_20_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_20_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_21_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_21_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_22_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_22_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_23_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_23_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_24_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_24_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_25_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_25_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_26_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_26_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_27_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_27_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_28_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_28_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_29_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_29_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_2_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_2_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_30_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_30_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_31_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_31_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_32_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_32_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_33_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_33_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_34_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_34_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_35_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_35_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_36_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_36_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_37_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_37_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_38_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_38_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_39_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_39_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_3_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_3_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_40_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_40_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_41_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_41_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_42_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_42_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_43_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_43_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_44_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_44_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_45_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_45_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_46_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_46_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_47_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_47_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_48_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_48_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_49_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_49_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_4_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_4_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_50_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_50_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_51_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_51_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_52_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_52_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_5_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_5_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_6_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_6_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_7_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_7_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_8_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_8_basecolor.jpg"
+  },
+  {
+   "name": "Lilith_tripo_part_9_basecolor.jpg",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": "//Lilith_3D/Lilith/Lilith.fbm/Lilith_tripo_part_9_basecolor.jpg"
+  },
+  {
+   "name": "Render Result",
+   "size": [
+    0,
+    0
+   ],
+   "packed": false,
+   "filepath": ""
+  },
+  {
+   "name": "Viewer Node",
+   "size": [
+    256,
+    256
+   ],
+   "packed": false,
+   "filepath": ""
+  }
+ ],
+ "scene_fps": 24,
+ "scene_frame_range": [
+  1,
+  250
+ ]
+}
+=== JSON END ===

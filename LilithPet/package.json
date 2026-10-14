@@ -1,0 +1,18 @@
+{
+  "name": "lilith-pet",
+  "productName": "Lilith Pet",
+  "version": "1.0.0",
+  "description": "Lilith desktop pet",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "three": "^0.180.0"
+  },
+  "allowScripts": {
+    "electron@38.8.6": true
+  }
+}

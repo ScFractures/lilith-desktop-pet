@@ -1,0 +1,13 @@
+#!/bin/zsh
+# 启动桌宠 Lilith —— 双击本应用即可，无需终端。
+SELF="${0:A}"
+BUNDLE="${SELF:h:h:h}"
+PARENT="${BUNDLE:h}"
+PROJ="$PARENT/LilithPet"
+[ -d "$PROJ" ] || PROJ="/Users/fractures/Desktop/LilithPet"
+ELECTRON="$PROJ/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+if [ ! -x "$ELECTRON" ]; then
+  osascript -e "display alert \"Lilith\" message \"未找到 LilithPet 项目或 Electron：$PROJ\" as critical" >/dev/null 2>&1
+  exit 1
+fi
+exec "$ELECTRON" "$PROJ" >/tmp/lilith-pet.log 2>&1
