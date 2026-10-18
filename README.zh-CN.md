@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-一个基于 Electron 的桌面宠物（macOS，Windows 为实验性支持）：莉莉丝漂浮在桌面上，会自己走动、发呆、聊天。支持接入 OpenAI 兼容、Anthropic 以及 Reasoning 模型的 API 进行 AI 对话。
+一个基于 Electron 的桌面宠物（macOS，Windows 为实验性支持）：莉莉丝漂浮在桌面上，会自己走动、发呆、聊天。支持接入 OpenAI 兼容或 Anthropic 的 API（包括推理模型）进行 AI 对话。
 
 ## 目录结构
 
@@ -75,7 +75,7 @@ npm start
 
 - 拖拽桌宠可以移动位置，它会随机四处走动。
 - 右键桌宠打开菜单：可以调整大小、切换模型、开关 AI 聊天，以及进入「对话窗口」「模型设置」和「AI 聊天设置」。
-- 「模型设置」可以同时保存多个接口：**OpenAI 兼容**（Chat Completions）、**Anthropic**（Messages）和 **Reasoning**（Responses API，可选推理强度）。填入 Base URL、API Key 和模型名，点"测试连接"确认可用后保存。Base URL 示例：`https://api.deepseek.com/v1`、`https://api.anthropic.com` 或本地服务地址。Key 只保存在本机，并且只会发送到你填写的 Base URL。
+- 「模型设置」可以同时保存多个接口：**OpenAI 兼容**和 **Anthropic** 都可以开启推理（OpenAI 使用 `reasoning_effort` 或 Responses API，Anthropic 使用扩展思考）。填好 Base URL 和 API Key 后可以用「读取模型」自动拉取模型列表和每个模型支持的思考深度（Anthropic 读取 Models API 的 capabilities，OpenAI 根据模型 ID 推断），不受支持的档位会自动禁用；也可以手动填写模型 ID，然后点"测试连接"确认可用后保存。Base URL 示例：`https://api.deepseek.com/v1`、`https://api.anthropic.com` 或本地服务地址。Key 只保存在本机，并且只会发送到你填写的 Base URL。
 - 「对话窗口」会打开独立的聊天窗口。在顶部下拉框选择已保存的模型，回车发送，生成过程中可以随时中断，也可以新建对话。回复会实时流式显示，模型返回的思考内容显示在回复上方。
 - 桌宠下方的快捷聊天输入框仍然可用，使用「AI 聊天设置」里保存的接口，回车发送、Esc 关闭。
 - AI 配置和对话记录只保存在你自己的电脑上（系统应用数据目录），消息只会发送到你配置的接口。

@@ -288,6 +288,11 @@ ipcMain.handle('custom-models-test', (_e, input) => {
   return customModels.test(input);
 });
 
+ipcMain.handle('custom-models-fetch', (_e, input) => {
+  if (!customModels) return { ok: false, error: 'unavailable', models: [] };
+  return customModels.fetchModels(input);
+});
+
 function initialChatBounds() {
   const saved = settings.chatBounds;
   const width = saved && Number.isFinite(saved.width)

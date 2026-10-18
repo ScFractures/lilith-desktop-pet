@@ -3,18 +3,33 @@
     zh: {
       windowTitle: '添加模型',
       title: '添加模型',
-      subtitle: '接入 OpenAI、Anthropic 或 Reasoning 接口，添加后可在对话窗口中直接选择。',
+      subtitle: '接入 OpenAI 兼容或 Anthropic 接口，可自动读取模型列表，也支持推理模型。',
+      typePill: 'OpenAI · Anthropic · 自动读取模型',
       typeLabel: '类型',
-      typeOpenAI: 'OpenAI 兼容（Chat Completions）',
+      typeOpenAI: 'OpenAI 兼容',
       typeAnthropic: 'Anthropic（Messages API）',
-      typeReasoning: 'Reasoning（OpenAI Responses API）',
-      typeHintOpenAI: '请求会发往 Base URL + /chat/completions。',
-      typeHintAnthropic: '请求会发往 Base URL + /v1/messages，使用 x-api-key 鉴权。',
-      typeHintReasoning: '请求会发往 Base URL + /v1/responses，回复中的思考内容会一并显示。',
+      apiLabel: '接口协议',
+      apiChat: 'Chat Completions',
+      apiResponses: 'Responses API（推理）',
+      typeHintOpenAI: '请求会发往 Base URL + /chat/completions；开启推理后会附带 reasoning_effort（需模型支持）。',
+      typeHintResponses: '请求会发往 Base URL + /v1/responses；模型返回的推理摘要会显示在回复上方。',
+      typeHintAnthropic: '请求会发往 Base URL + /v1/messages，使用 x-api-key 鉴权；开启推理会启用扩展思考（extended thinking，需模型支持）。',
       effortLabel: '推理强度',
+      effortOff: '默认（不指定）',
+      effortNone: '关闭思考 · none',
+      effortMinimal: '极低 · minimal',
       effortLow: '低 · low',
       effortMedium: '中 · medium',
       effortHigh: '高 · high',
+      effortXhigh: '极高 · xhigh',
+      effortMax: '最大 · max',
+      effortShortNone: '关闭',
+      effortShortMinimal: '极低',
+      effortShortLow: '低',
+      effortShortMedium: '中',
+      effortShortHigh: '高',
+      effortShortXhigh: '极高',
+      effortShortMax: '最大',
       nameLabel: '显示名称',
       namePh: '如 DeepSeek 官方（可留空）',
       modelLabel: '模型 ID',
@@ -56,29 +71,63 @@
       noKey: '无 Key',
       badgeOpenAI: 'OpenAI',
       badgeAnthropic: 'Anthropic',
-      badgeReasoning: 'Reasoning',
+      badgeResponses: 'Responses',
+      badgeReasoning: '推理 · {level}',
+      badgeEfforts: '深度 · {levels}',
+      fetchModel: '读取模型',
+      fetchingModels: '读取中…',
+      fetchHint: '可从接口读取模型列表和每个模型支持的思考深度，也可以手动填写。',
+      fetchOk: '已读取 {n} 个模型，可从输入框下拉选择。',
+      fetchOkDepth: '已读取 {n} 个模型，其中 {d} 个包含思考深度信息。',
+      fetchEmpty: '接口没有返回模型，可手动填写。',
+      depthLoading: '读取模型后会显示每个模型支持的思考深度。',
+      depthKnown: '可用思考深度：{levels}（{source}）',
+      depthNone: '接口显示该模型没有可调的思考深度参数。',
+      depthUnknown: '接口未提供这个模型的思考深度，仍可手动选择档位。',
+      depthReset: '原档位不受支持，已切换为默认。',
+      depthSourceApi: '来自接口',
+      depthSourceInferred: '根据模型推断',
+      depthSourceSaved: '已保存的信息',
+      depthSourceUnknown: '来源未知',
+      fetchFail: '读取失败：{error}',
+      fetchNeedBase: '请先填写有效的 Base URL。',
       errBaseUrl: 'Base URL 格式不对，需要以 http:// 或 https:// 开头。',
       errModel: '请填写模型 ID。',
       errNotFound: '没有找到这个模型。',
       errUnavailable: '模型配置暂不可用。',
       unknownError: '未知错误',
-      footnote: '保存后回到对话窗口，在模型下拉框里选择；模型返回的思考内容会显示在回复上方。',
+      footnote: '保存后回到对话窗口，在模型下拉框里选择；读取模型时会同时读取每个模型支持的思考深度，OpenAI 和 Anthropic 的思考内容都会显示在回复上方。',
     },
     en: {
       windowTitle: 'Add model',
       title: 'Add model',
-      subtitle: 'Connect OpenAI, Anthropic or Reasoning endpoints and pick them in the chat window.',
+      subtitle: 'Connect OpenAI-compatible or Anthropic endpoints, fetch the model list automatically, and enable reasoning.',
+      typePill: 'OpenAI · Anthropic · model discovery',
       typeLabel: 'Type',
-      typeOpenAI: 'OpenAI-compatible (Chat Completions)',
+      typeOpenAI: 'OpenAI-compatible',
       typeAnthropic: 'Anthropic (Messages API)',
-      typeReasoning: 'Reasoning (OpenAI Responses API)',
-      typeHintOpenAI: 'Requests go to Base URL + /chat/completions.',
-      typeHintAnthropic: 'Requests go to Base URL + /v1/messages with x-api-key auth.',
-      typeHintReasoning: 'Requests go to Base URL + /v1/responses; reasoning content is shown in chat.',
+      apiLabel: 'API protocol',
+      apiChat: 'Chat Completions',
+      apiResponses: 'Responses API (reasoning)',
+      typeHintOpenAI: 'Requests go to Base URL + /chat/completions; enabling reasoning sends reasoning_effort (model support required).',
+      typeHintResponses: 'Requests go to Base URL + /v1/responses; reasoning summaries appear above the reply.',
+      typeHintAnthropic: 'Requests go to Base URL + /v1/messages with x-api-key auth; enabling reasoning turns on extended thinking (model support required).',
       effortLabel: 'Reasoning effort',
-      effortLow: 'Low',
-      effortMedium: 'Medium',
-      effortHigh: 'High',
+      effortOff: 'Default (unset)',
+      effortNone: 'Off · none',
+      effortMinimal: 'Minimal · minimal',
+      effortLow: 'Low · low',
+      effortMedium: 'Medium · medium',
+      effortHigh: 'High · high',
+      effortXhigh: 'Extra high · xhigh',
+      effortMax: 'Max · max',
+      effortShortNone: 'off',
+      effortShortMinimal: 'minimal',
+      effortShortLow: 'low',
+      effortShortMedium: 'medium',
+      effortShortHigh: 'high',
+      effortShortXhigh: 'xhigh',
+      effortShortMax: 'max',
       nameLabel: 'Display name',
       namePh: 'e.g. DeepSeek official (optional)',
       modelLabel: 'Model ID',
@@ -120,13 +169,32 @@
       noKey: 'No key',
       badgeOpenAI: 'OpenAI',
       badgeAnthropic: 'Anthropic',
-      badgeReasoning: 'Reasoning',
+      badgeResponses: 'Responses',
+      badgeReasoning: 'Reasoning · {level}',
+      badgeEfforts: 'Depths · {levels}',
+      fetchModel: 'Fetch models',
+      fetchingModels: 'Fetching…',
+      fetchHint: 'Fetch the model list and each model’s supported thinking depths, or type an ID manually.',
+      fetchOk: 'Loaded {n} models — choose one from the dropdown.',
+      fetchOkDepth: 'Loaded {n} models; {d} include thinking-depth info.',
+      fetchEmpty: 'The endpoint returned no models. Type an ID manually.',
+      depthLoading: 'Fetch models to see the thinking depths each model supports.',
+      depthKnown: 'Supported thinking depths: {levels} ({source})',
+      depthNone: 'The endpoint reports no adjustable thinking depth for this model.',
+      depthUnknown: 'No thinking-depth info for this model; you can still choose a level manually.',
+      depthReset: 'The previous level is unsupported, so it was reset to default.',
+      depthSourceApi: 'from API',
+      depthSourceInferred: 'inferred from model ID',
+      depthSourceSaved: 'saved info',
+      depthSourceUnknown: 'unknown source',
+      fetchFail: 'Fetch failed: {error}',
+      fetchNeedBase: 'Enter a valid Base URL first.',
       errBaseUrl: 'Base URL must start with http:// or https://.',
       errModel: 'Enter a model ID.',
       errNotFound: 'This model was not found.',
       errUnavailable: 'Model settings are unavailable.',
       unknownError: 'Unknown error',
-      footnote: 'After saving, pick it in the chat window model menu. Reasoning returned by the model appears above the reply.',
+      footnote: 'After saving, pick it in the chat window model menu. Fetching models also reads each model’s supported thinking depths; reasoning from both OpenAI and Anthropic appears above the reply.',
     },
   };
 
@@ -138,13 +206,23 @@
   const saveBtn = $('save');
   const cancelBtn = $('cancel-edit');
   const typeEl = $('type');
+  const apiEl = $('api');
+  const apiField = $('api-field');
   const effortEl = $('effort');
-  const effortField = $('effort-field');
+  const fetchBtn = $('fetch-models');
+  const modelOptions = $('model-options');
+  const modelHint = $('model-hint');
+  const depthHint = $('depth-hint');
 
   let lang = 'zh';
   let models = [];
+  let catalog = [];
+  let selectedMeta = null;
   let editingId = null;
   let actionBusy = false;
+  let fetchBusy = false;
+  let fetchTimer = null;
+  let fetchSeq = 0;
 
   const t = (key) => (LABELS[lang] && LABELS[lang][key]) || LABELS.zh[key] || key;
   const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_m, key) => (vars && key in vars ? vars[key] : `{${key}}`));
@@ -152,6 +230,11 @@
   function setStatus(message, kind) {
     statusEl.textContent = message || '';
     statusEl.className = `status${kind ? ` ${kind}` : ''}`;
+  }
+
+  function setModelHint(message, kind) {
+    modelHint.textContent = message || '';
+    modelHint.className = `hint${kind ? ` ${kind}` : ''}`;
   }
 
   function errorText(result) {
@@ -165,23 +248,112 @@
   }
 
   function badgeLabel(type) {
-    if (type === 'anthropic') return t('badgeAnthropic');
-    if (type === 'reasoning') return t('badgeReasoning');
-    return t('badgeOpenAI');
+    return type === 'anthropic' ? t('badgeAnthropic') : t('badgeOpenAI');
+  }
+
+  function effortShort(effort) {
+    const keys = {
+      none: 'effortShortNone',
+      minimal: 'effortShortMinimal',
+      low: 'effortShortLow',
+      medium: 'effortShortMedium',
+      high: 'effortShortHigh',
+      xhigh: 'effortShortXhigh',
+      max: 'effortShortMax',
+    };
+    return t(keys[effort] || 'effortShortMedium');
+  }
+
+  function effortsText(list) {
+    return (Array.isArray(list) ? list : []).map(effortShort).join(' / ');
+  }
+
+  function catalogMeta(id) {
+    return catalog.find((entry) => entry && entry.id === id) || null;
+  }
+
+  function savedMeta(id) {
+    if (!editingId) return null;
+    const saved = models.find((entry) => entry.id === editingId);
+    if (!saved || saved.model !== id) return null;
+    return {
+      efforts: Array.isArray(saved.efforts) ? saved.efforts : null,
+      thinking: saved.thinking || '',
+      source: 'saved',
+    };
+  }
+
+  function depthSourceLabel(source) {
+    if (source === 'api') return t('depthSourceApi');
+    if (source === 'inferred') return t('depthSourceInferred');
+    if (source === 'saved') return t('depthSourceSaved');
+    return t('depthSourceUnknown');
+  }
+
+  function syncEffortOptions(efforts) {
+    const allowed = Array.isArray(efforts) ? efforts : null;
+    let reset = false;
+    Array.from(effortEl.options).forEach((option) => {
+      if (!option.value) {
+        option.disabled = false;
+        return;
+      }
+      option.disabled = !!allowed && !allowed.includes(option.value);
+    });
+    if (allowed && effortEl.value && !allowed.includes(effortEl.value)) {
+      effortEl.value = '';
+      reset = true;
+    }
+    return reset;
+  }
+
+  function refreshDepthInfo() {
+    const id = $('model-id').value.trim();
+    let meta = id ? catalogMeta(id) : null;
+    if (!meta) meta = id ? savedMeta(id) : null;
+    selectedMeta = meta
+      ? {
+          efforts: Array.isArray(meta.efforts) ? meta.efforts.slice() : null,
+          thinking: meta.thinking || '',
+        }
+      : null;
+    const reset = syncEffortOptions(meta ? meta.efforts : null);
+    if (!id) {
+      depthHint.textContent = '';
+      return;
+    }
+    let message;
+    if (meta && Array.isArray(meta.efforts)) {
+      message = meta.efforts.length
+        ? fill(t('depthKnown'), {
+            levels: effortsText(meta.efforts),
+            source: depthSourceLabel(meta.source),
+          })
+        : t('depthNone');
+    } else if (meta || catalog.length) {
+      message = t('depthUnknown');
+    } else {
+      message = t('depthLoading');
+    }
+    if (reset) message = `${message} ${t('depthReset')}`;
+    depthHint.textContent = message;
   }
 
   function syncTypeFields() {
     const type = typeEl.value;
-    effortField.hidden = type !== 'reasoning';
-    $('type-hint').textContent = t(
-      type === 'anthropic' ? 'typeHintAnthropic' : (type === 'reasoning' ? 'typeHintReasoning' : 'typeHintOpenAI')
-    );
+    const api = apiEl.value;
+    apiField.hidden = type !== 'openai';
+    const hintKey = type === 'anthropic'
+      ? 'typeHintAnthropic'
+      : (api === 'responses' ? 'typeHintResponses' : 'typeHintOpenAI');
+    $('type-hint').textContent = t(hintKey);
     $('base-url').placeholder = t(
-      type === 'anthropic' ? 'basePhAnthropic' : (type === 'reasoning' ? 'basePhReasoning' : 'basePh')
+      type === 'anthropic' ? 'basePhAnthropic' : (api === 'responses' ? 'basePhReasoning' : 'basePh')
     );
     $('model-id').placeholder = t(
-      type === 'anthropic' ? 'modelPhAnthropic' : (type === 'reasoning' ? 'modelPhReasoning' : 'modelPh')
+      type === 'anthropic' ? 'modelPhAnthropic' : (api === 'responses' ? 'modelPhReasoning' : 'modelPh')
     );
+    setModelHint(t('fetchHint'), '');
   }
 
   function updateFormChrome() {
@@ -198,13 +370,17 @@
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
     $('title').textContent = t('title');
     $('subtitle').textContent = t('subtitle');
+    $('type-pill').textContent = t('typePill');
     typeEl.options[0].textContent = t('typeOpenAI');
     typeEl.options[1].textContent = t('typeAnthropic');
-    typeEl.options[2].textContent = t('typeReasoning');
-    effortEl.options[0].textContent = t('effortLow');
-    effortEl.options[1].textContent = t('effortMedium');
-    effortEl.options[2].textContent = t('effortHigh');
+    apiEl.options[0].textContent = t('apiChat');
+    apiEl.options[1].textContent = t('apiResponses');
+    ['effortOff', 'effortNone', 'effortMinimal', 'effortLow', 'effortMedium', 'effortHigh', 'effortXhigh', 'effortMax']
+      .forEach((key, index) => {
+        if (effortEl.options[index]) effortEl.options[index].textContent = t(key);
+      });
     $('lbl-effort').textContent = t('effortLabel');
+    $('lbl-api').textContent = t('apiLabel');
     $('list-title').textContent = t('listTitle');
     $('lbl-type').textContent = t('typeLabel');
     $('lbl-name').textContent = t('nameLabel');
@@ -215,9 +391,11 @@
     $('model-id').placeholder = t('modelPh');
     $('base-url').placeholder = t('basePh');
     $('footnote').textContent = t('footnote');
+    setFetchBusy(fetchBusy);
     testBtn.textContent = t('test');
     syncTypeFields();
     updateFormChrome();
+    refreshDepthInfo();
     renderList();
   }
 
@@ -241,8 +419,25 @@
 
       const titleRow = makeElement('div', 'model-title-row');
       titleRow.appendChild(makeElement('span', 'model-name', model.name));
-      const type = model.type === 'anthropic' || model.type === 'reasoning' ? model.type : 'openai';
+      const type = model.type === 'anthropic' ? 'anthropic' : 'openai';
       titleRow.appendChild(makeElement('span', `badge type-${type}`, badgeLabel(type)));
+      if (type === 'openai' && model.api === 'responses') {
+        titleRow.appendChild(makeElement('span', 'badge type-responses', t('badgeResponses')));
+      }
+      if (Array.isArray(model.efforts) && model.efforts.length) {
+        titleRow.appendChild(makeElement(
+          'span',
+          'badge type-responses',
+          fill(t('badgeEfforts'), { levels: effortsText(model.efforts) })
+        ));
+      }
+      if (model.effort) {
+        titleRow.appendChild(makeElement(
+          'span',
+          'badge type-reasoning',
+          fill(t('badgeReasoning'), { level: effortShort(model.effort) })
+        ));
+      }
       if (model.legacy) titleRow.appendChild(makeElement('span', 'badge legacy', t('legacy')));
 
       info.appendChild(titleRow);
@@ -280,14 +475,31 @@
 
   function formPayload() {
     const type = typeEl.value;
-    return {
+    const payload = {
       id: editingId || undefined,
       type,
+      api: type === 'openai' ? apiEl.value : '',
       name: $('name').value.trim(),
       model: $('model-id').value.trim(),
       baseUrl: $('base-url').value.trim(),
       apiKey: $('api-key').value,
-      effort: type === 'reasoning' ? effortEl.value : '',
+      effort: effortEl.value || '',
+    };
+    if (selectedMeta) {
+      payload.efforts = Array.isArray(selectedMeta.efforts) ? selectedMeta.efforts : null;
+      payload.thinking = selectedMeta.thinking || '';
+    }
+    return payload;
+  }
+
+  function fetchPayload() {
+    const type = typeEl.value;
+    return {
+      id: editingId || undefined,
+      type,
+      api: type === 'openai' ? apiEl.value : '',
+      baseUrl: $('base-url').value.trim(),
+      apiKey: $('api-key').value,
     };
   }
 
@@ -306,37 +518,124 @@
     return payload;
   }
 
+  function setFetchBusy(value) {
+    fetchBusy = value;
+    fetchBtn.disabled = value || actionBusy;
+    fetchBtn.textContent = value ? t('fetchingModels') : t('fetchModel');
+  }
+
   function setActionBusy(value) {
     actionBusy = value;
-    testBtn.disabled = value;
-    saveBtn.disabled = value;
+    testBtn.disabled = value || fetchBusy;
+    saveBtn.disabled = value || fetchBusy;
+    fetchBtn.disabled = value || fetchBusy;
+  }
+
+  function clearModelChoices() {
+    fetchSeq += 1;
+    modelOptions.textContent = '';
+    catalog = [];
+    selectedMeta = null;
+    refreshDepthInfo();
+  }
+
+  function renderModelChoices(list) {
+    catalog = Array.isArray(list)
+      ? list.filter((model) => model && typeof model.id === 'string' && model.id)
+      : [];
+    modelOptions.textContent = '';
+    catalog.forEach((model) => {
+      const option = document.createElement('option');
+      option.value = model.id;
+      const levels = Array.isArray(model.efforts) && model.efforts.length ? effortsText(model.efforts) : '';
+      const parts = [model.name || '', levels].filter(Boolean);
+      if (parts.length) option.label = parts.join(' · ');
+      modelOptions.appendChild(option);
+    });
+    refreshDepthInfo();
+  }
+
+  function scheduleAutoFetch() {
+    clearTimeout(fetchTimer);
+    fetchTimer = setTimeout(() => readRemoteModels({ auto: true }), 600);
+  }
+
+  async function readRemoteModels({ auto = false } = {}) {
+    if (actionBusy || fetchBusy) return;
+    const payload = fetchPayload();
+    if (!/^https?:\/\/\S+$/i.test(payload.baseUrl)) {
+      if (!auto) {
+        setModelHint(t('fetchNeedBase'), 'err');
+        $('base-url').focus();
+      }
+      return;
+    }
+    if (auto && !payload.apiKey.trim() && !editingId) return;
+
+    const seq = ++fetchSeq;
+    setFetchBusy(true);
+    if (!auto) setModelHint(t('fetchingModels'), '');
+    let result;
+    try {
+      result = await window.models.fetchModels(payload);
+    } catch (error) {
+      result = { ok: false, error: String((error && error.message) || error) };
+    }
+    if (seq !== fetchSeq) {
+      setFetchBusy(false);
+      return;
+    }
+    setFetchBusy(false);
+    if (result && result.ok) {
+      const list = Array.isArray(result.models) ? result.models : [];
+      renderModelChoices(list);
+      const withDepth = list.filter((model) => Array.isArray(model.efforts) && model.efforts.length).length;
+      const message = !list.length
+        ? t('fetchEmpty')
+        : (withDepth
+          ? fill(t('fetchOkDepth'), { n: list.length, d: withDepth })
+          : fill(t('fetchOk'), { n: list.length }));
+      setModelHint(message, '');
+    } else if (!auto) {
+      setModelHint(fill(t('fetchFail'), { error: errorText(result) }), 'err');
+    }
   }
 
   function resetForm(focus) {
+    clearTimeout(fetchTimer);
+    clearModelChoices();
     editingId = null;
     formEl.reset();
     typeEl.value = 'openai';
-    effortEl.value = 'medium';
+    apiEl.value = 'chat';
+    effortEl.value = '';
     syncTypeFields();
     updateFormChrome();
+    refreshDepthInfo();
     if (focus) $('name').focus();
   }
 
   function startEditing(model) {
     if (actionBusy) return;
+    clearTimeout(fetchTimer);
     editingId = model.id;
-    typeEl.value = model.type === 'anthropic' || model.type === 'reasoning' ? model.type : 'openai';
-    effortEl.value = model.effort === 'low' || model.effort === 'high' ? model.effort : 'medium';
+    typeEl.value = model.type === 'anthropic' ? 'anthropic' : 'openai';
+    apiEl.value = model.type === 'reasoning' || model.api === 'responses' ? 'responses' : 'chat';
+    const storedEffort = model.effort || (model.type === 'reasoning' ? 'medium' : '');
+    effortEl.value = storedEffort;
+    if (effortEl.value !== storedEffort) effortEl.value = '';
     syncTypeFields();
     $('name').value = model.name;
     $('model-id').value = model.model;
     $('base-url').value = model.baseUrl;
     $('api-key').value = '';
+    clearModelChoices();
     updateFormChrome();
     setStatus(t('keyHintEdit'), '');
     const panel = formEl.closest('.panel');
     if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     $('name').focus();
+    scheduleAutoFetch();
   }
 
   async function testCurrent() {
@@ -409,11 +708,7 @@
       return;
     }
     if (Array.isArray(result.models)) models = result.models;
-    editingId = null;
-    formEl.reset();
-    effortEl.value = 'medium';
-    syncTypeFields();
-    updateFormChrome();
+    resetForm(false);
     renderList();
     setStatus(t('saved'), 'ok');
   }
@@ -441,7 +736,28 @@
 
   formEl.addEventListener('submit', saveModel);
   testBtn.addEventListener('click', testCurrent);
-  typeEl.addEventListener('change', syncTypeFields);
+  fetchBtn.addEventListener('click', () => readRemoteModels({ auto: false }));
+  typeEl.addEventListener('change', () => {
+    syncTypeFields();
+    clearModelChoices();
+    scheduleAutoFetch();
+  });
+  apiEl.addEventListener('change', () => {
+    syncTypeFields();
+    clearModelChoices();
+    scheduleAutoFetch();
+  });
+  $('model-id').addEventListener('input', refreshDepthInfo);
+  $('base-url').addEventListener('change', () => {
+    clearModelChoices();
+    setModelHint(t('fetchHint'), '');
+    scheduleAutoFetch();
+  });
+  $('api-key').addEventListener('change', () => {
+    clearModelChoices();
+    setModelHint(t('fetchHint'), '');
+    scheduleAutoFetch();
+  });
   cancelBtn.addEventListener('click', () => {
     resetForm(true);
     setStatus('', '');
@@ -458,7 +774,7 @@
       const info = await window.models.getLang();
       if (info && info.lang) lang = info.lang === 'en' ? 'en' : 'zh';
     } catch {}
-    effortEl.value = 'medium';
+    effortEl.value = '';
     applyLabels();
     await refreshList();
   })();

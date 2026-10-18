@@ -14,7 +14,7 @@
         <h1 id="title">添加模型</h1>
         <p id="subtitle">接入任意 OpenAI 兼容接口，添加后可在对话窗口中直接选择。</p>
       </div>
-      <span class="type-pill">OpenAI · Anthropic · Reasoning</span>
+      <span id="type-pill" class="type-pill">OpenAI · Anthropic · 自动读取模型</span>
     </header>
 
     <main>
@@ -36,28 +36,45 @@
             <label class="field full">
               <span id="lbl-type">类型</span>
               <select id="type">
-                <option value="openai">OpenAI 兼容（Chat Completions）</option>
-                <option value="anthropic">Anthropic（Messages API）</option>
-                <option value="reasoning">Reasoning（OpenAI Responses API）</option>
+                <option value="openai">OpenAI 兼容</option>
+                <option value="anthropic">Anthropic</option>
               </select>
             </label>
             <p id="type-hint" class="hint full"></p>
-            <label class="field full" id="effort-field" hidden>
+            <label class="field" id="api-field">
+              <span id="lbl-api">接口协议</span>
+              <select id="api">
+                <option value="chat">Chat Completions</option>
+                <option value="responses">Responses API（推理）</option>
+              </select>
+            </label>
+            <label class="field" id="effort-field">
               <span id="lbl-effort">推理强度</span>
               <select id="effort">
+                <option value="">默认（不指定）</option>
+                <option value="none">关闭思考</option>
+                <option value="minimal">极低</option>
                 <option value="low">低</option>
                 <option value="medium">中</option>
                 <option value="high">高</option>
+                <option value="xhigh">极高</option>
+                <option value="max">最大</option>
               </select>
             </label>
             <label class="field">
               <span id="lbl-name">显示名称</span>
               <input id="name" type="text" maxlength="80" placeholder="如 DeepSeek 官方（可留空）" spellcheck="false" />
             </label>
-            <label class="field">
+            <div class="field" id="model-field">
               <span id="lbl-model">模型 ID</span>
-              <input id="model-id" type="text" maxlength="160" placeholder="如 deepseek-chat" spellcheck="false" />
-            </label>
+              <div class="model-input-row">
+                <input id="model-id" type="text" maxlength="160" placeholder="如 deepseek-chat" spellcheck="false" list="model-options" />
+                <button id="fetch-models" class="secondary compact" type="button">读取模型</button>
+              </div>
+              <datalist id="model-options"></datalist>
+              <p id="model-hint" class="hint"></p>
+              <p id="depth-hint" class="hint"></p>
+            </div>
             <label class="field full">
               <span id="lbl-base">Base URL</span>
               <input id="base-url" type="text" maxlength="600" placeholder="https://api.deepseek.com/v1" spellcheck="false" />

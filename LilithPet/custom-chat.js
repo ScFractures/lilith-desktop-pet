@@ -89,6 +89,8 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
       label: entry.name,
       kind: 'custom',
       type: entry.type,
+      api: entry.api,
+      effort: entry.effort,
       model: entry.model,
     }));
   }

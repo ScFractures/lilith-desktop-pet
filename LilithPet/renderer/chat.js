@@ -9,7 +9,8 @@
       manageModels: '添加模型',
       modelGroupOpenAI: 'OpenAI 兼容',
       modelGroupAnthropic: 'Anthropic',
-      modelGroupReasoning: 'Reasoning',
+      responsesSuffix: ' · Responses',
+      reasoningSuffix: ' · 推理',
       noModelWarning: '还没有添加模型。点上面的「添加模型」填写接口信息。',
       reasoning: '思考过程',
       welcomeTitle: '和莉莉丝聊天',
@@ -50,7 +51,8 @@
       manageModels: 'Add model',
       modelGroupOpenAI: 'OpenAI-compatible',
       modelGroupAnthropic: 'Anthropic',
-      modelGroupReasoning: 'Reasoning',
+      responsesSuffix: ' · Responses',
+      reasoningSuffix: ' · Reasoning',
       noModelWarning: 'No models yet. Use “Add model” above to connect an endpoint.',
       reasoning: 'Reasoning',
       welcomeTitle: 'Chat with Lilith',
@@ -178,9 +180,9 @@
   function renderModelOptions(entries, selected) {
     const current = selected || state.model;
     const list = Array.isArray(entries) ? entries.slice() : [];
-    const groups = { openai: [], anthropic: [], reasoning: [] };
+    const groups = { openai: [], anthropic: [] };
     list.forEach((entry) => {
-      const type = entry.type === 'anthropic' || entry.type === 'reasoning' ? entry.type : 'openai';
+      const type = entry.type === 'anthropic' ? 'anthropic' : 'openai';
       groups[type].push(entry);
     });
 
@@ -192,7 +194,8 @@
       items.forEach((entry) => {
         const option = document.createElement('option');
         option.value = entry.value || '';
-        option.textContent = entry.label || entry.value || '—';
+        const suffix = entry.api === 'responses' ? t('responsesSuffix') : (entry.effort ? t('reasoningSuffix') : '');
+        option.textContent = `${entry.label || entry.value || '—'}${suffix}`;
         option.title = entry.model || entry.label || '';
         option.selected = entry.value === current;
         group.appendChild(option);
@@ -201,7 +204,6 @@
     };
     addGroup(t('modelGroupOpenAI'), groups.openai);
     addGroup(t('modelGroupAnthropic'), groups.anthropic);
-    addGroup(t('modelGroupReasoning'), groups.reasoning);
     if (!list.length) {
       const option = document.createElement('option');
       option.value = '';

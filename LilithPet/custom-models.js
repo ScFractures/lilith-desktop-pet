@@ -6,14 +6,23 @@ const path = require('path');
 
 const TYPE_OPENAI = 'openai';
 const TYPE_ANTHROPIC = 'anthropic';
-const TYPE_REASONING = 'reasoning';
-const TYPES = new Set([TYPE_OPENAI, TYPE_ANTHROPIC, TYPE_REASONING]);
-const EFFORTS = new Set(['low', 'medium', 'high']);
+const LEGACY_TYPE_REASONING = 'reasoning';
+const API_CHAT = 'chat';
+const API_RESPONSES = 'responses';
+const APIS = new Set([API_CHAT, API_RESPONSES]);
+const EFFORT_ORDER = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+const EFFORTS = new Set(EFFORT_ORDER);
+const EFFORT_BUDGETS = { minimal: 512, low: 1024, medium: 2048, high: 4096, xhigh: 8192, max: 16384 };
+const OPENAI_FALLBACK_EFFORTS = ['low', 'medium', 'high'];
+const ANTHROPIC_BUDGET_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const ANTHROPIC_ADAPTIVE_EFFORTS = ['none', 'low', 'medium', 'high', 'xhigh', 'max'];
+const THINKING_MODES = new Set(['effort', 'budget', 'none']);
 const MAX_URL = 600;
 const MAX_KEY = 500;
 const MAX_NAME = 80;
 const MAX_MODEL_ID = 160;
 const TEST_TIMEOUT_MS = 30000;
+const MODELS_TIMEOUT_MS = 20000;
 const HISTORY_LIMIT = 40;
 const HISTORY_CHARS = 60000;
 
@@ -22,19 +31,172 @@ function text(value, max) {
 }
 
 function normalizeType(value) {
-  return TYPES.has(value) ? value : TYPE_OPENAI;
+  return value === TYPE_ANTHROPIC ? TYPE_ANTHROPIC : TYPE_OPENAI;
 }
 
-function normalizeEffort(value, type) {
-  if (type !== TYPE_REASONING) return '';
-  return EFFORTS.has(value) ? value : 'medium';
+function normalizeApi(value, type) {
+  if (type !== TYPE_OPENAI) return '';
+  return APIS.has(value) ? value : API_CHAT;
 }
 
-function normalizeBaseUrl(value, type = TYPE_OPENAI) {
+function normalizeEffort(value, legacyFallback) {
+  if (EFFORTS.has(value)) return value;
+  if (value === 'off' || value === '') return '';
+  return legacyFallback ? 'medium' : '';
+}
+
+function effortEnabled(value) {
+  return !!value && value !== 'none';
+}
+
+function testEffort(entry) {
+  const allowed = Array.isArray(entry && entry.efforts) ? entry.efforts : [];
+  for (const effort of ['low', 'medium', 'high', 'minimal', 'xhigh', 'max']) {
+    if (!allowed.length || allowed.includes(effort)) return effort;
+  }
+  return 'low';
+}
+
+function sanitizeEfforts(value) {
+  if (!Array.isArray(value)) return null;
+  const found = new Set(value.filter((effort) => EFFORTS.has(effort)));
+  return EFFORT_ORDER.filter((effort) => found.has(effort));
+}
+
+function normalizeThinking(value) {
+  return THINKING_MODES.has(value) ? value : '';
+}
+
+function modelTail(id) {
+  const value = text(id, MAX_MODEL_ID).toLowerCase();
+  const slash = value.lastIndexOf('/');
+  return slash >= 0 ? value.slice(slash + 1) : value;
+}
+
+function inferOpenAIEfforts(id) {
+  const name = modelTail(id);
+  if (!name) return null;
+  if (/^o1-(?:mini|preview)(?:-|$)/.test(name)) return [];
+  if (/^gpt-5(?:\.\d+)?-pro(?:-|$)/.test(name)) return ['high'];
+  if (/codex-max/.test(name)) return ['none', 'low', 'medium', 'high', 'xhigh'];
+  if (/^gpt-5\.1(?:-|$)/.test(name)) return ['none', 'minimal', 'low', 'medium', 'high'];
+  if (/^gpt-5-codex(?:-|$)/.test(name)) return OPENAI_FALLBACK_EFFORTS;
+  if (/^gpt-5(?:\.\d+)?(?:-|$)/.test(name)) return ['minimal', 'low', 'medium', 'high'];
+  if (/^o[134](?:-|$)/.test(name)) return OPENAI_FALLBACK_EFFORTS;
+  if (/(?:^|-)o[34](?:-|$)|o4-mini/.test(name)) return OPENAI_FALLBACK_EFFORTS;
+  if (/^gpt-oss/.test(name)) return OPENAI_FALLBACK_EFFORTS;
+  return null;
+}
+
+function inferAnthropicThinking(id) {
+  const name = modelTail(id);
+  if (!name) return { efforts: null, thinking: '' };
+  const modern = /(?:^|-)claude-(?:opus-)?[5-9](?:[.-]|$)/.test(name)
+    || /(?:^|-)claude-opus-4[.-][7-9](?:[.-]|$)/.test(name)
+    || /(?:^|-)fable(?:[.-]|$)/.test(name)
+    || /(?:^|-)mythos(?:[.-]|$)/.test(name);
+  if (modern) return { efforts: ANTHROPIC_ADAPTIVE_EFFORTS, thinking: 'effort' };
+  if (/claude-3[.-]7|claude-sonnet-4|claude-opus-4|claude-haiku-4/.test(name)) {
+    return { efforts: ANTHROPIC_BUDGET_EFFORTS, thinking: 'budget' };
+  }
+  if (/claude-3(?:[.-]|$)|claude-3[.-]5|claude-instant|claude-2/.test(name)) {
+    return { efforts: [], thinking: 'none' };
+  }
+  return { efforts: null, thinking: '' };
+}
+
+function thinkingCapability(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  for (const source of [raw.capabilities, raw.capability, raw.features]) {
+    if (source && typeof source === 'object' && source.thinking != null) return source.thinking;
+  }
+  return raw.thinking && typeof raw.thinking === 'object' ? raw.thinking : null;
+}
+
+function readCapabilityThinking(raw) {
+  const thinking = thinkingCapability(raw);
+  if (thinking == null) return null;
+  const tokens = new Set();
+  const visit = (node) => {
+    if (node == null) return;
+    if (typeof node === 'string') {
+      const token = node.trim().toLowerCase();
+      if (EFFORTS.has(token)) tokens.add(token);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const entry of node) visit(entry);
+      return;
+    }
+    if (typeof node !== 'object') return;
+    for (const [key, value] of Object.entries(node)) {
+      const token = key.toLowerCase();
+      if (EFFORTS.has(token)) tokens.add(token);
+      visit(value);
+    }
+  };
+  visit(thinking);
+  let serialized = '';
+  try { serialized = JSON.stringify(thinking).toLowerCase(); } catch {}
+  const mode = /adaptive/.test(serialized)
+    ? 'effort'
+    : (/budget|enabled/.test(serialized) ? 'budget' : (/disabled/.test(serialized) ? 'none' : ''));
+  return {
+    mode,
+    disabled: /disabled/.test(serialized),
+    efforts: EFFORT_ORDER.filter((effort) => tokens.has(effort)),
+  };
+}
+
+function describeModel(type, item) {
+  const id = text(item && item.id, MAX_MODEL_ID);
+  if (type === TYPE_ANTHROPIC) {
+    const inferred = inferAnthropicThinking(id);
+    const capabilities = readCapabilityThinking(item && item.raw);
+    let thinking = (capabilities && capabilities.mode) || inferred.thinking;
+    let efforts = inferred.efforts;
+    if (capabilities && capabilities.efforts.length) efforts = capabilities.efforts;
+    else if (thinking === 'effort' && efforts == null) efforts = ANTHROPIC_ADAPTIVE_EFFORTS;
+    else if (thinking === 'budget' && efforts == null) efforts = ANTHROPIC_BUDGET_EFFORTS;
+    if (thinking === 'effort' && Array.isArray(efforts)) {
+      const supportsOff = capabilities ? capabilities.disabled : true;
+      const levels = new Set(efforts);
+      if (supportsOff) levels.add('none');
+      else levels.delete('none');
+      efforts = sanitizeEfforts([...levels]);
+    }
+    if (thinking === 'none') efforts = [];
+    return {
+      efforts,
+      thinking,
+      source: capabilities ? 'api' : (efforts === null ? 'unknown' : 'inferred'),
+    };
+  }
+  const efforts = inferOpenAIEfforts(id);
+  return {
+    efforts,
+    thinking: efforts === null ? '' : (efforts.length ? 'effort' : 'none'),
+    source: efforts === null ? 'unknown' : 'inferred',
+  };
+}
+
+function anthropicThinkingMode(entry) {
+  const mode = normalizeThinking(entry && entry.thinking);
+  if (mode) return mode;
+  return inferAnthropicThinking(entry && entry.model).thinking || 'budget';
+}
+
+function isResponses(entry) {
+  if (!entry) return false;
+  if (entry.type === LEGACY_TYPE_REASONING) return true;
+  return entry.type !== TYPE_ANTHROPIC && entry.api === API_RESPONSES;
+}
+
+function normalizeBaseUrl(value, type = TYPE_OPENAI, api = API_CHAT) {
   let url = text(value, MAX_URL).replace(/\/+$/, '');
   if (type === TYPE_ANTHROPIC) {
     url = url.replace(/\/(?:v1\/)?messages$/i, '');
-  } else if (type === TYPE_REASONING) {
+  } else if (api === API_RESPONSES) {
     url = url.replace(/\/(?:v1\/)?responses$/i, '');
   } else {
     url = url.replace(/\/chat\/completions$/i, '');
@@ -46,15 +208,24 @@ function validBaseUrl(url) {
   return /^https?:\/\/[^\s]+$/i.test(url);
 }
 
-function endpointUrl(baseUrl, type) {
-  const base = normalizeBaseUrl(baseUrl, type);
+function endpointUrl(baseUrl, type, api = API_CHAT) {
+  const base = normalizeBaseUrl(baseUrl, type, api);
   if (type === TYPE_ANTHROPIC) {
     return base.toLowerCase().endsWith('/v1') ? `${base}/messages` : `${base}/v1/messages`;
   }
-  if (type === TYPE_REASONING) {
+  if (api === API_RESPONSES) {
     return base.toLowerCase().endsWith('/v1') ? `${base}/responses` : `${base}/v1/responses`;
   }
   return `${base}/chat/completions`;
+}
+
+function modelsUrl(baseUrl, type) {
+  const base = normalizeBaseUrl(baseUrl, type, API_CHAT);
+  if (type === TYPE_ANTHROPIC) {
+    const root = base.toLowerCase().endsWith('/v1') ? base : `${base}/v1`;
+    return `${root}/models?limit=1000`;
+  }
+  return `${base}/models`;
 }
 
 function readJson(file) {
@@ -74,27 +245,44 @@ function writeJsonAtomic(file, value) {
   } catch {}
 }
 
-function makeEntry(input, base = {}) {
+function makeEntry(input, base = {}, options = {}) {
   const source = input && typeof input === 'object' ? input : {};
-  const type = normalizeType(source.type != null ? source.type : base.type);
+  const typeSource = source.type != null ? source.type : base.type;
+  const legacyReasoning = typeSource === LEGACY_TYPE_REASONING;
+  const type = normalizeType(typeSource);
+  const api = type === TYPE_OPENAI
+    ? normalizeApi(source.api != null ? source.api : (legacyReasoning ? API_RESPONSES : base.api), type)
+    : '';
   const modelId = text(source.model != null ? source.model : base.model, MAX_MODEL_ID);
-  const baseUrl = normalizeBaseUrl(source.baseUrl != null ? source.baseUrl : base.baseUrl, type);
+  const baseUrl = normalizeBaseUrl(source.baseUrl != null ? source.baseUrl : base.baseUrl, type, api);
   const name = text(source.name != null ? source.name : base.name, MAX_NAME) || modelId;
-  const effort = normalizeEffort(source.effort != null ? source.effort : base.effort, type);
-  let apiKey = typeof source.apiKey === 'string'
-    ? source.apiKey.trim().slice(0, MAX_KEY)
-    : (typeof base.apiKey === 'string' ? base.apiKey : '');
+  const effortSource = source.effort != null ? source.effort : base.effort;
+  const effort = normalizeEffort(effortSource, legacyReasoning && effortSource == null);
+  const sameModel = !!modelId && base.model === modelId;
+  const inferred = describeModel(type, { id: modelId });
+  const sourceEfforts = source.efforts !== undefined
+    ? sanitizeEfforts(source.efforts)
+    : (sameModel ? sanitizeEfforts(base.efforts) : null);
+  const efforts = sourceEfforts !== null ? sourceEfforts : inferred.efforts;
+  const thinking = normalizeThinking(source.thinking)
+    || (sameModel ? normalizeThinking(base.thinking) : '')
+    || inferred.thinking;
+  const typedKey = typeof source.apiKey === 'string' ? source.apiKey.trim().slice(0, MAX_KEY) : '';
+  const apiKey = typedKey || (typeof base.apiKey === 'string' ? base.apiKey : '');
   if (!validBaseUrl(baseUrl)) return { error: 'invalid-base-url' };
-  if (!modelId) return { error: 'missing-model' };
+  if (options.requireModel !== false && !modelId) return { error: 'missing-model' };
   return {
     entry: {
       id: typeof base.id === 'string' && base.id ? base.id : crypto.randomUUID(),
       type,
+      api,
       name,
       baseUrl,
       apiKey,
       model: modelId,
       effort,
+      efforts,
+      thinking,
       legacy: base.legacy === true,
       createdAt: Number.isFinite(base.createdAt) ? base.createdAt : Date.now(),
       updatedAt: Date.now(),
@@ -122,10 +310,13 @@ function listPublic(entry) {
   return {
     id: entry.id,
     type: entry.type,
+    api: entry.api,
     name: entry.name,
     baseUrl: entry.baseUrl,
     model: entry.model,
     effort: entry.effort,
+    efforts: Array.isArray(entry.efforts) ? entry.efforts.slice() : null,
+    thinking: entry.thinking || '',
     hasKey: !!entry.apiKey,
     legacy: entry.legacy === true,
     createdAt: entry.createdAt,
@@ -240,18 +431,38 @@ function responsesMessage(data) {
 }
 
 function responseBody(entry, messages, stream, maxTokens) {
-  if (entry.type === TYPE_ANTHROPIC) {
+  const type = normalizeType(entry.type);
+  const api = type === TYPE_OPENAI ? normalizeApi(entry.api, type) : '';
+  const effort = normalizeEffort(entry.effort, false);
+
+  if (type === TYPE_ANTHROPIC) {
     const payload = anthropicPayload(messages);
+    const mode = anthropicThinkingMode(entry);
+    const active = effortEnabled(effort) && mode !== 'none';
+    const thinkingEffort = mode === 'effort' && effort === 'minimal' ? 'low' : effort;
+    const budget = active && thinkingEffort ? (EFFORT_BUDGETS[thinkingEffort] || EFFORT_BUDGETS.medium) : 0;
+    let maxOut = Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : budget + 4096;
+    if (budget) maxOut = Math.max(maxOut, budget + 512);
     const body = {
       model: entry.model,
       messages: payload.messages,
-      max_tokens: Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 4096,
+      max_tokens: maxOut,
       stream: !!stream,
     };
     if (payload.system) body.system = payload.system;
+    if (mode === 'effort') {
+      if (effort === 'none') body.thinking = { type: 'disabled' };
+      else if (active) {
+        body.thinking = { type: 'adaptive' };
+        body.output_config = { effort: thinkingEffort };
+      }
+    } else if (budget) {
+      body.thinking = { type: 'enabled', budget_tokens: budget };
+    }
     return body;
   }
-  if (entry.type === TYPE_REASONING) {
+
+  if (api === API_RESPONSES) {
     const body = {
       model: entry.model,
       input: (Array.isArray(messages) ? messages : [])
@@ -260,15 +471,17 @@ function responseBody(entry, messages, stream, maxTokens) {
       stream: !!stream,
     };
     if (Number.isFinite(maxTokens) && maxTokens > 0) body.max_output_tokens = maxTokens;
-    if (entry.effort) body.reasoning = { effort: entry.effort };
+    if (effort) body.reasoning = { effort, summary: 'auto' };
     return body;
   }
+
   const body = {
     model: entry.model,
     messages,
     stream: !!stream,
   };
   if (Number.isFinite(maxTokens) && maxTokens > 0) body.max_tokens = maxTokens;
+  if (effort) body.reasoning_effort = effort;
   return body;
 }
 
@@ -295,6 +508,76 @@ function apiErrorText(data) {
   if (typeof error === 'string') return error.slice(0, 500);
   if (data.type === 'error') return String(data.message || 'stream error').slice(0, 500);
   return '';
+}
+
+function collectModels(data, type = TYPE_OPENAI) {
+  const provider = normalizeType(type);
+  const source = Array.isArray(data)
+    ? data
+    : (Array.isArray(data && data.data) ? data.data : (Array.isArray(data && data.models) ? data.models : []));
+  const seen = new Map();
+  for (const item of source) {
+    let id = '';
+    let name = '';
+    if (typeof item === 'string') {
+      id = text(item, MAX_MODEL_ID);
+    } else if (item && typeof item === 'object') {
+      id = text(item.id || item.model || item.name, MAX_MODEL_ID);
+      name = text(item.display_name || item.displayName || item.name, MAX_NAME);
+      if (name === id) name = '';
+    }
+    if (id && !seen.has(id)) {
+      seen.set(id, { id, name, raw: item && typeof item === 'object' ? item : null });
+    }
+  }
+  return [...seen.values()]
+    .map(({ id, name, raw }) => {
+      const info = describeModel(provider, { id, raw });
+      return {
+        id,
+        name,
+        efforts: info.efforts,
+        thinking: info.thinking,
+        source: info.source,
+      };
+    })
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+async function fetchModelCatalog(entry) {
+  const type = normalizeType(entry.type);
+  const headers = { Accept: 'application/json' };
+  if (type === TYPE_ANTHROPIC) {
+    headers['anthropic-version'] = '2023-06-01';
+    if (entry.apiKey) headers['x-api-key'] = entry.apiKey;
+  } else if (entry.apiKey) {
+    headers.Authorization = `Bearer ${entry.apiKey}`;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MODELS_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(modelsUrl(entry.baseUrl, type), { headers, signal: controller.signal });
+  } catch (error) {
+    if (error && error.name === 'AbortError') {
+      throw new Error(`请求超时（${Math.round(MODELS_TIMEOUT_MS / 1000)} 秒）`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!response.ok) {
+    let detail = '';
+    try { detail = await response.text(); } catch {}
+    let message = detail;
+    try {
+      const parsed = JSON.parse(detail);
+      message = apiErrorText(parsed) || detail;
+    } catch {}
+    const snippet = String(message || '').replace(/\s+/g, ' ').slice(0, 320);
+    throw new Error(`HTTP ${response.status}${snippet ? `: ${snippet}` : ''}`);
+  }
+  return collectModels(await response.json(), type);
 }
 
 function abortError() {
@@ -335,11 +618,13 @@ async function requestCompletion(entry, messages, options = {}) {
   };
 
   const type = normalizeType(entry.type);
+  const api = type === TYPE_OPENAI ? normalizeApi(entry.api, type) : '';
+  const responses = isResponses(entry);
   const body = responseBody(entry, messages, stream, maxTokens);
 
   let response;
   try {
-    response = await fetch(endpointUrl(entry.baseUrl, type), {
+    response = await fetch(endpointUrl(entry.baseUrl, type, api), {
       method: 'POST',
       headers: requestHeaders(entry, stream),
       body: JSON.stringify(body),
@@ -377,7 +662,7 @@ async function requestCompletion(entry, messages, options = {}) {
     if (errorText) throw new Error(errorText);
     const result = type === TYPE_ANTHROPIC
       ? anthropicMessage(data)
-      : (type === TYPE_REASONING ? responsesMessage(data) : openAIMessage(data));
+      : (responses ? responsesMessage(data) : openAIMessage(data));
     if (result.reasoning && onReasoning) onReasoning(result.reasoning);
     return result.text;
   }
@@ -425,7 +710,7 @@ async function requestCompletion(entry, messages, options = {}) {
       return;
     }
 
-    if (type === TYPE_REASONING) {
+    if (responses) {
       if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
         emitText(event.delta);
       } else if (event.type === 'response.reasoning_summary_text.delta'
@@ -589,10 +874,12 @@ function createCustomModelStore({ file, legacyFile, onChanged }) {
     const existing = source.id ? store.models.find((entry) => entry.id === source.id) : null;
     const result = makeEntry(source, existing || {});
     if (result.error) return { ok: false, error: result.error };
-    const entry = result.entry.type === TYPE_REASONING
-      ? { ...result.entry, effort: 'low' }
-      : result.entry;
-    const maxTokens = entry.type === TYPE_REASONING ? 2048 : (entry.type === TYPE_ANTHROPIC ? 64 : 16);
+    const wantsReasoning = effortEnabled(normalizeEffort(result.entry.effort, false));
+    const entry = wantsReasoning ? { ...result.entry, effort: testEffort(result.entry) } : result.entry;
+    const type = normalizeType(entry.type);
+    const maxTokens = isResponses(entry)
+      ? 2048
+      : (type === TYPE_ANTHROPIC ? (wantsReasoning ? 1536 : 64) : (wantsReasoning ? null : 16));
     const startedAt = Date.now();
     try {
       const reply = await requestCompletion(
@@ -605,6 +892,25 @@ function createCustomModelStore({ file, legacyFile, onChanged }) {
         reply: String(reply || '').trim().slice(0, 300),
         latencyMs: Date.now() - startedAt,
       };
+    } catch (error) {
+      return {
+        ok: false,
+        error: String((error && error.message) || error).slice(0, 600),
+        latencyMs: Date.now() - startedAt,
+      };
+    }
+  }
+
+  async function fetchModels(input) {
+    const store = load();
+    const source = input && typeof input === 'object' ? input : {};
+    const existing = source.id ? store.models.find((entry) => entry.id === source.id) : null;
+    const result = makeEntry(source, existing || {}, { requireModel: false });
+    if (result.error) return { ok: false, error: result.error };
+    const startedAt = Date.now();
+    try {
+      const models = await fetchModelCatalog(result.entry);
+      return { ok: true, models, latencyMs: Date.now() - startedAt };
     } catch (error) {
       return {
         ok: false,
@@ -634,6 +940,7 @@ function createCustomModelStore({ file, legacyFile, onChanged }) {
     save,
     remove,
     test,
+    fetchModels,
     stream,
     buildHistory,
   };
@@ -644,7 +951,11 @@ module.exports = {
   buildHistory,
   normalizeBaseUrl,
   endpointUrl,
+  modelsUrl,
+  collectModels,
   TYPE_OPENAI,
   TYPE_ANTHROPIC,
-  TYPE_REASONING,
+  LEGACY_TYPE_REASONING,
+  API_CHAT,
+  API_RESPONSES,
 };
