@@ -97,7 +97,7 @@
       errUnavailable: '模型配置暂不可用。',
       errTimeout: '请求超时了，请稍后重试。',
       unknownError: '未知错误',
-      footnote: '保存后回到 Qoder 对话窗口，在模型下拉框里选择；读取模型时会同时读取每个模型支持的思考深度，OpenAI 和 Anthropic 的思考内容都会显示在回复上方。',
+      footnote: '保存后回到对话窗口，在模型下拉框里选择；读取模型时会同时读取每个模型支持的思考深度，OpenAI 和 Anthropic 的思考内容都会显示在回复上方。',
     },
     en: {
       windowTitle: 'Add model',
@@ -196,7 +196,7 @@
       errUnavailable: 'Model settings are unavailable.',
       errTimeout: 'The request timed out. Try again.',
       unknownError: 'Unknown error',
-      footnote: 'After saving, pick it in the Qoder chat window model menu. Fetching models also reads each model’s supported thinking depths; reasoning from both OpenAI and Anthropic appears above the reply.',
+      footnote: 'After saving, pick it in the chat window model menu. Fetching models also reads each model’s supported thinking depths; reasoning from both OpenAI and Anthropic appears above the reply.',
     },
   };
 

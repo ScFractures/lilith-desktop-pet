@@ -14,8 +14,6 @@ contextBridge.exposeInMainWorld('pet', {
   aiGetConfig: () => ipcRenderer.invoke('ai-get-config'),
   aiSaveConfig: (cfg) => ipcRenderer.invoke('ai-save-config', cfg),
   aiTest: (cfg) => ipcRenderer.invoke('ai-test', cfg),
-  qoderBalance: () => ipcRenderer.invoke('qoder-balance'),
-  openQoderChat: () => ipcRenderer.invoke('open-qoder-chat'),
   openAiSettings: () => ipcRenderer.send('open-ai-settings'),
   setSleeping: (v) => ipcRenderer.send('pet-sleep', !!v),
   i18nGet: () => ipcRenderer.invoke('i18n-get'),

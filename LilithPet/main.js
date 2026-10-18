@@ -1,11 +1,10 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
 const { STRINGS, normalizeLang, langFromLocale } = require('./i18n');
-const { queryQoderBalance } = require('./qoder-balance');
-const { createQoderChat } = require('./qoder-chat');
+const { createCustomChat } = require('./custom-chat');
 const { createCustomModelStore } = require('./custom-models');
 
 // Transparent windows crash the GPU process (0xC0000005) on a class of Windows
@@ -25,11 +24,11 @@ const WALK_TICK = 16;
 let win = null;
 let chatWin = null;
 let modelsWin = null;
-let qoderChat = null;
+let customChat = null;
 let customModels = null;
 let tray = null;
 let cfgFile = null;
-const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, qoderChatBounds: null };
+const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, chatBounds: null };
 
 const T = () => STRINGS[settings.lang] || STRINGS.zh;
 
@@ -179,43 +178,6 @@ ipcMain.handle('ai-test', async (_e, cfg) => {
   }
 });
 
-// Qoder usage is read by launching the CLI with a temporary statusLine hook. That hook receives
-// the account's credits snapshot; no model request is made and no token is handled here.
-const qoderBalanceCachePath = () => path.join(app.getPath('userData'), 'qoder-balance.json');
-let qoderBalanceInflight = null;
-
-function readQoderBalanceCache() {
-  try {
-    const cached = JSON.parse(fs.readFileSync(qoderBalanceCachePath(), 'utf8'));
-    if (cached && typeof cached.remaining === 'number') return cached;
-  } catch {}
-  return null;
-}
-
-ipcMain.handle('qoder-balance', async () => {
-  const cached = readQoderBalanceCache();
-  if (cached && Date.now() - (cached.fetchedAt || 0) < 15000) {
-    return { ok: true, ...cached, cached: true };
-  }
-  if (qoderBalanceInflight) return qoderBalanceInflight;
-  qoderBalanceInflight = (async () => {
-    try {
-      const data = await queryQoderBalance();
-      const payload = { ...data, fetchedAt: Date.now() };
-      try { fs.writeFileSync(qoderBalanceCachePath(), JSON.stringify(payload)); } catch {}
-      return { ok: true, ...payload };
-    } catch (e) {
-      if (cached) {
-        return { ok: false, code: e.code || 'error', error: String(e.message || e), stale: true, ...cached };
-      }
-      return { ok: false, code: e.code || 'error', error: String(e.message || e) };
-    } finally {
-      qoderBalanceInflight = null;
-    }
-  })();
-  return qoderBalanceInflight;
-});
-
 ipcMain.on('set-focusable', (_e, v) => {
   if (!win || win.isDestroyed()) return;
   if (v) {
@@ -331,9 +293,9 @@ ipcMain.handle('custom-models-fetch', (_e, input) => {
   return customModels.fetchModels(input);
 });
 
-// ---------------------------------------------------------------- Qoder chat
+// ---------------------------------------------------------------- custom chat
 function initialChatBounds() {
-  const saved = settings.qoderChatBounds;
+  const saved = settings.chatBounds;
   const width = saved && Number.isFinite(saved.width)
     ? Math.round(Math.min(920, Math.max(420, saved.width)))
     : 520;
@@ -362,8 +324,8 @@ function initialChatBounds() {
   return { x: Math.round(x), y, width, height };
 }
 
-function openQoderChat() {
-  if (!qoderChat) return;
+function openCustomChat() {
+  if (!customChat) return;
   if (chatWin && !chatWin.isDestroyed()) {
     if (chatWin.isMinimized()) chatWin.restore();
     if (process.platform === 'darwin') app.focus({ steal: true });
@@ -377,7 +339,7 @@ function openQoderChat() {
     minWidth: 420,
     minHeight: 540,
     show: false,
-    title: 'Lilith · Qoder',
+    title: 'Lilith · Chat',
     backgroundColor: '#f8f5f7',
     autoHideMenuBar: true,
     ...(process.platform === 'darwin'
@@ -392,9 +354,6 @@ function openQoderChat() {
   chatWin.setMenuBarVisibility(false);
   chatWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   chatWin.webContents.on('will-navigate', (event) => event.preventDefault());
-  chatWin.webContents.on('console-message', (_e, _level, message, line, source) => {
-    console.log(`[qoder-chat] ${message} (${path.basename(source || '')}:${line})`);
-  });
   chatWin.once('ready-to-show', () => {
     if (!chatWin || chatWin.isDestroyed()) return;
     if (process.platform === 'darwin') app.focus({ steal: true });
@@ -403,67 +362,45 @@ function openQoderChat() {
   });
   chatWin.on('close', () => {
     if (!chatWin || chatWin.isDestroyed()) return;
-    settings.qoderChatBounds = chatWin.getBounds();
+    settings.chatBounds = chatWin.getBounds();
     saveCfgSoon();
   });
   chatWin.on('closed', () => { chatWin = null; });
   chatWin.webContents.once('did-finish-load', () => {
     if (!chatWin || chatWin.isDestroyed()) return;
-    chatWin.webContents.send('qoder-chat-event', { type: 'lang', lang: settings.lang });
-    if (qoderChat) qoderChat.refreshModels();
+    chatWin.webContents.send('custom-chat-event', { type: 'lang', lang: settings.lang });
+    if (customChat) customChat.refreshCustomModels();
   });
   chatWin.loadFile(path.join(__dirname, 'renderer', 'chat.html'));
 }
 
-ipcMain.handle('open-qoder-chat', () => { openQoderChat(); return { ok: true }; });
+ipcMain.handle('open-custom-chat', () => { openCustomChat(); return { ok: true }; });
 
-ipcMain.handle('qoder-chat-state', () => {
-  if (!qoderChat) return { error: 'unavailable' };
-  return { ...qoderChat.getState(), lang: settings.lang };
+ipcMain.handle('custom-chat-state', () => {
+  if (!customChat) return { error: 'unavailable' };
+  return { ...customChat.getState(), lang: settings.lang };
 });
 
-ipcMain.handle('qoder-chat-send', (_e, text) => {
-  if (!qoderChat) return { ok: false, error: 'unavailable' };
+ipcMain.handle('custom-chat-send', (_e, text) => {
+  if (!customChat) return { ok: false, error: 'unavailable' };
   if (typeof text !== 'string') return { ok: false, error: 'empty' };
-  return qoderChat.send(text);
+  return customChat.send(text);
 });
 
-ipcMain.handle('qoder-chat-stop', () => (qoderChat ? qoderChat.stop() : { ok: false }));
-ipcMain.handle('qoder-chat-new', () => (qoderChat ? qoderChat.newChat() : { ok: false }));
+ipcMain.handle('custom-chat-stop', () => (customChat ? customChat.stop() : { ok: false }));
+ipcMain.handle('custom-chat-new', () => (customChat ? customChat.newChat() : { ok: false }));
 
-ipcMain.handle('qoder-chat-set-model', (_e, model) => {
-  if (!qoderChat || typeof model !== 'string') return { ok: false, error: 'invalid-model' };
-  return qoderChat.setModel(model);
+ipcMain.handle('custom-chat-set-model', (_e, model) => {
+  if (!customChat || typeof model !== 'string') return { ok: false, error: 'invalid-model' };
+  return customChat.setModel(model);
 });
 
-ipcMain.handle('qoder-chat-set-mode', (_e, mode) => {
-  if (!qoderChat || typeof mode !== 'string') return { ok: false, error: 'invalid-mode' };
-  return qoderChat.setMode(mode);
-});
-
-ipcMain.handle('qoder-chat-choose-workspace', async () => {
-  if (!qoderChat) return { ok: false, error: 'unavailable' };
-  if (qoderChat.getState().busy) return { ok: false, error: 'busy' };
-  const options = {
-    title: T().qoderChooseWorkspace,
-    properties: ['openDirectory', 'createDirectory'],
-    defaultPath: qoderChat.getState().workspace,
-  };
-  const result = chatWin && !chatWin.isDestroyed()
-    ? await dialog.showOpenDialog(chatWin, options)
-    : await dialog.showOpenDialog(options);
-  if (result.canceled || !result.filePaths || !result.filePaths[0]) {
-    return { ok: false, error: 'canceled' };
-  }
-  return qoderChat.setWorkspace(result.filePaths[0]);
-});
-
-ipcMain.handle('qoder-chat-close', () => {
+ipcMain.handle('custom-chat-close', () => {
   if (chatWin && !chatWin.isDestroyed()) chatWin.close();
   return { ok: true };
 });
 
-ipcMain.handle('qoder-chat-minimize', () => {
+ipcMain.handle('custom-chat-minimize', () => {
   if (chatWin && !chatWin.isDestroyed()) chatWin.minimize();
   return { ok: true };
 });
@@ -483,7 +420,7 @@ function setLanguage(lang) {
     modelsWin.webContents.send('models-event', { type: 'lang', lang: settings.lang });
   }
   if (chatWin && !chatWin.isDestroyed()) {
-    chatWin.webContents.send('qoder-chat-event', { type: 'lang', lang: settings.lang });
+    chatWin.webContents.send('custom-chat-event', { type: 'lang', lang: settings.lang });
   }
   if (tray) refreshTrayMenu();
 }
@@ -850,6 +787,10 @@ function trayMenuTemplate() {
     },
     modelSubmenu(refreshTrayMenu),
     languageSubmenu(refreshTrayMenu),
+    { type: 'separator' },
+    { label: t.menuChatWindow, click: () => openCustomChat() },
+    { label: t.menuModels, click: () => openModelsWindow() },
+    { type: 'separator' },
     { label: t.trayReset, click: () => { toggleVisible(true); resetPosition(); } },
     { type: 'separator' },
     { label: t.menuQuit, click: () => { persistPos(); app.quit(); } },
@@ -923,8 +864,8 @@ ipcMain.on('context-menu', (_e, at) => {
   if (!win) return;
   const t = T();
   const menu = Menu.buildFromTemplate([
-    { label: t.menuQoderChat, click: () => openQoderChat() },
-    { label: t.menuQoderBalance, click: () => send('pet-cmd', 'qoder-balance') },
+    { label: t.menuChatWindow, click: () => openCustomChat() },
+    { label: t.menuModels, click: () => openModelsWindow() },
     { type: 'separator' },
     { label: t.menuPat, click: () => send('pet-cmd', 'pat') },
     { label: t.menuWalk, click: () => send('pet-cmd', 'walk') },
@@ -1364,15 +1305,14 @@ app.whenReady().then(() => {
     file: path.join(app.getPath('userData'), 'custom-models.json'),
     legacyFile: path.join(app.getPath('userData'), 'ai-config.json'),
     onChanged: () => {
-      if (qoderChat) qoderChat.refreshCustomModels();
+      if (customChat) customChat.refreshCustomModels();
     },
   });
-  qoderChat = createQoderChat({
-    stateFile: path.join(app.getPath('userData'), 'qoder-chat.json'),
-    modelsFile: path.join(app.getPath('userData'), 'qoder-models.json'),
+  customChat = createCustomChat({
+    stateFile: path.join(app.getPath('userData'), 'custom-chat.json'),
     customStore: customModels,
     onEvent: (event) => {
-      if (chatWin && !chatWin.isDestroyed()) chatWin.webContents.send('qoder-chat-event', event);
+      if (chatWin && !chatWin.isDestroyed()) chatWin.webContents.send('custom-chat-event', event);
     },
   });
   createWindow();
@@ -1411,12 +1351,12 @@ app.on('window-all-closed', () => {});
 app.on('before-quit', () => {
   persistPos();
   if (chatWin && !chatWin.isDestroyed()) {
-    settings.qoderChatBounds = chatWin.getBounds();
+    settings.chatBounds = chatWin.getBounds();
     try { fs.writeFileSync(cfgFile, JSON.stringify(settings)); } catch {}
   }
-  if (qoderChat) {
-    qoderChat.dispose();
-    qoderChat = null;
+  if (customChat) {
+    customChat.dispose();
+    customChat = null;
   }
   if (fsWatcher) { fsWatcher.kill(); fsWatcher = null; }
 });

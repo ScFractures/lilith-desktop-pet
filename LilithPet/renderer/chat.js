@@ -1,4 +1,4 @@
-/* Qoder chat window renderer. All state lives in main; this file only reflects events. */
+/* Chat window renderer. All state lives in main; this file only reflects events. */
 (() => {
   const LABELS = {
     zh: {
@@ -6,62 +6,43 @@
       minimize: '最小化',
       close: '关闭',
       model: '模型',
-      mode: '模式',
       manageModels: '添加模型',
-      qoderGroup: 'Qoder',
-      customOpenAIGroup: '自定义 · OpenAI',
-      customAnthropicGroup: '自定义 · Anthropic',
+      modelGroupOpenAI: 'OpenAI 兼容',
+      modelGroupAnthropic: 'Anthropic',
       responsesSuffix: ' · Responses',
       reasoningSuffix: ' · 推理',
-      customWarning: '自定义模型直连所选接口（OpenAI / Anthropic / Reasoning），不启用 Qoder 工具、权限模式和工作目录。',
+      noModelWarning: '还没有添加模型。点上面的「添加模型」填写接口信息。',
       reasoning: '思考过程',
-      sessionCustom: '自定义模型不使用 Qoder 会话',
-      yoloWarning: 'YOLO：工具调用不再确认，请确认工作目录正确。',
-      welcomeTitle: '直接和 Qoder 说话',
-      welcomeBody: '这个窗口会以你选定的模型和权限模式运行 Qoder。它可以读文件、跑命令、改代码——尤其是 YOLO 模式下。',
+      welcomeTitle: '和莉莉丝聊天',
+      welcomeBody: '选一个模型，直接开始。回复会以流式出现，思考型模型还会显示思考过程。',
       hintModel: '模型可随时切换',
-      hintMode: '模式决定工具权限',
+      hintTypes: 'OpenAI · Anthropic · Reasoning',
       hintEnter: 'Enter 发送',
-      placeholder: '交代一件事，或直接问…',
+      placeholder: '和莉莉丝说点什么…',
       send: '发送',
       stop: '停止',
       enterHint: 'Enter 发送 · Shift+Enter 换行',
-      sessionActive: '会话已连接，后续消息会保留上下文',
-      sessionNew: '还没有建立会话',
-      sessionReset: '旧会话已失效，已自动开始新会话。',
-      working: 'Qoder 正在工作…',
-      workingCustom: '模型正在回答…',
-      starting: '正在启动 Qoder…',
+      working: '模型正在回答…',
       connecting: '正在连接模型…',
       thinking: '正在思考…',
       stopping: '正在停止…',
       ready: '就绪',
+      noModel: '还没有添加模型',
       done: '完成',
       stopped: '已停止',
       failed: '出错了',
-      credits: '{n} credits',
       errorPrefix: '错误：',
+      timeoutError: '请求超时，请稍后重试。',
+      abortedError: '请求已取消。',
       interrupted: '已中断。',
       emptyReply: '（没有返回文本）',
-      toolInput: '输入',
-      toolResult: '结果',
-      toolRunning: '运行中',
-      toolCalls: '工具调用',
-      toolFailed: '{n} 个失败',
-      errorTimeout: '请求超时了。',
-      errorQoderTimeout: 'Qoder 运行超时了。',
-      errorCustomTimeout: '自定义模型请求超时了。',
       busySend: '上一条还在进行，先等它结束或点停止。',
       emptySend: '先说点什么吧。',
       tooLong: '这段话太长了，精简一点。',
-      qoderMissing: '找不到 Qoder CLI，请确认 ~/.qoder-cn 已安装并可运行。',
-      spawnFailed: '启动 Qoder 失败。',
       invalidModel: '这个模型已不存在，请重新选择。',
       manageFailed: '打开添加模型页面失败：{error}',
-      chooseWorkspace: '选择工作目录',
       newChatConfirm: '开始新对话？当前对话会从窗口中清空。',
-      newChatBusyConfirm: 'Qoder 还在运行。开始新对话会停止当前运行并清空对话，继续吗？',
-      workspaceConfirm: '切换工作目录会开始新对话，当前对话会被清空。继续吗？',
+      newChatBusyConfirm: '模型还在回答。开始新对话会停止当前回答并清空对话，继续吗？',
       requestFailed: '操作失败：{error}',
     },
     en: {
@@ -69,86 +50,60 @@
       minimize: 'Minimize',
       close: 'Close',
       model: 'Model',
-      mode: 'Mode',
       manageModels: 'Add model',
-      qoderGroup: 'Qoder',
-      customOpenAIGroup: 'Custom · OpenAI',
-      customAnthropicGroup: 'Custom · Anthropic',
+      modelGroupOpenAI: 'OpenAI-compatible',
+      modelGroupAnthropic: 'Anthropic',
       responsesSuffix: ' · Responses',
       reasoningSuffix: ' · Reasoning',
-      customWarning: 'Custom models call the selected endpoint directly (OpenAI / Anthropic / Reasoning); Qoder tools, mode and workspace are not used.',
+      noModelWarning: 'No models yet. Use “Add model” above to connect an endpoint.',
       reasoning: 'Reasoning',
-      sessionCustom: 'Custom models do not use a Qoder session',
-      yoloWarning: 'YOLO: tool calls run without confirmation. Make sure the workspace is correct.',
-      welcomeTitle: 'Talk to Qoder directly',
-      welcomeBody: 'This window runs Qoder with the model and permission mode you pick. It can read files, run commands and edit code — especially in YOLO mode.',
+      welcomeTitle: 'Chat with Lilith',
+      welcomeBody: 'Pick a model and start. Replies stream in, and reasoning models also show their thinking.',
       hintModel: 'Switch models anytime',
-      hintMode: 'Mode sets tool permissions',
+      hintTypes: 'OpenAI · Anthropic · Reasoning',
       hintEnter: 'Enter to send',
-      placeholder: 'Assign a task, or just ask…',
+      placeholder: 'Say something to Lilith…',
       send: 'Send',
       stop: 'Stop',
       enterHint: 'Enter to send · Shift+Enter for a new line',
-      sessionActive: 'Session connected; later messages keep the context',
-      sessionNew: 'No session yet',
-      sessionReset: 'The old session was invalid; started a new one.',
-      working: 'Qoder is working…',
-      workingCustom: 'The model is replying…',
-      starting: 'Starting Qoder…',
+      working: 'The model is replying…',
       connecting: 'Connecting to the model…',
       thinking: 'Thinking…',
       stopping: 'Stopping…',
       ready: 'Ready',
+      noModel: 'No models yet',
       done: 'Done',
       stopped: 'Stopped',
       failed: 'Something went wrong',
-      credits: '{n} credits',
       errorPrefix: 'Error: ',
+      timeoutError: 'The request timed out. Try again.',
+      abortedError: 'The request was canceled.',
       interrupted: 'Interrupted.',
       emptyReply: '(no text returned)',
-      toolInput: 'Input',
-      toolResult: 'Result',
-      toolRunning: 'running',
-      toolCalls: 'Tool calls',
-      toolFailed: '{n} failed',
-      errorTimeout: 'The request timed out.',
-      errorQoderTimeout: 'The Qoder run timed out.',
-      errorCustomTimeout: 'The custom model request timed out.',
       busySend: 'The previous turn is still running. Wait or press Stop.',
       emptySend: 'Say something first.',
       tooLong: 'That message is too long — trim it a little.',
-      qoderMissing: 'Qoder CLI was not found. Check that ~/.qoder-cn is installed and runnable.',
-      spawnFailed: 'Failed to start Qoder.',
       invalidModel: 'That model no longer exists. Pick another one.',
       manageFailed: 'Could not open the add-model page: {error}',
-      chooseWorkspace: 'Choose workspace',
       newChatConfirm: 'Start a new chat? The current conversation will be cleared from the window.',
-      newChatBusyConfirm: 'Qoder is still running. Starting a new chat will stop it and clear the conversation. Continue?',
-      workspaceConfirm: 'Switching workspace starts a new chat and clears the current conversation. Continue?',
+      newChatBusyConfirm: 'The model is still replying. Starting a new chat will stop it and clear the conversation. Continue?',
       requestFailed: 'Action failed: {error}',
     },
   };
 
-  const bodyClass = window.qoder.platform === 'darwin' ? 'darwin' : 'other';
+  const bodyClass = window.lilithChat.platform === 'darwin' ? 'darwin' : 'other';
   document.body.classList.add(bodyClass);
 
   const messagesEl = document.getElementById('messages');
   const welcomeEl = document.getElementById('welcome');
   const modelSel = document.getElementById('model');
-  const modeSel = document.getElementById('mode');
   const manageModelsBtn = document.getElementById('manage-models');
-  const workspaceBtn = document.getElementById('workspace');
-  const workspaceName = document.getElementById('workspace-name');
-  const workspacePath = document.getElementById('workspace-path');
-  const yoloWarning = document.getElementById('yolo-warning');
-  const customWarning = document.getElementById('custom-warning');
-  const sessionDot = document.getElementById('session-dot');
+  const modelWarning = document.getElementById('model-warning');
   const newChatBtn = document.getElementById('newchat');
   const minimizeBtn = document.getElementById('minimize');
   const closeBtn = document.getElementById('closewin');
   const spinner = document.getElementById('spinner');
   const statusText = document.getElementById('status-text');
-  const statusCredits = document.getElementById('status-credits');
   const statusbar = document.getElementById('statusbar');
   const stopBtn = document.getElementById('stop');
   const input = document.getElementById('input');
@@ -156,44 +111,23 @@
 
   let lang = 'zh';
   let state = {
-    sessionId: null,
     model: '',
-    modelKind: 'qoder',
     modelEntries: [],
-    mode: 'yolo',
-    workspace: '',
     messages: [],
-    models: [],
-    modes: [],
     busy: false,
     draft: null,
   };
   let draftNode = null;
   let draftTextEl = null;
-  let draftToolsEl = null;
   let draftThinkEl = null;
   let draftReasonEl = null;
   let draftReasonTextEl = null;
-  let draftTools = [];
   let statusResetTimer = null;
   let forceScroll = false;
   let draftQueued = false;
 
   const t = (key) => (LABELS[lang] && LABELS[lang][key]) || LABELS.zh[key] || key;
   const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_m, k) => (vars && k in vars ? vars[k] : `{${k}}`));
-
-  function formatCredits(value) {
-    const n = Number(value);
-    if (!Number.isFinite(n) || n <= 0) return '';
-    const fixed = n.toFixed(n >= 1 ? 2 : 4).replace(/\.?0+$/, '');
-    return fill(t('credits'), { n: fixed });
-  }
-
-  function basename(p) {
-    if (!p) return '~';
-    const parts = String(p).split(/[\\/]/).filter(Boolean);
-    return parts[parts.length - 1] || p;
-  }
 
   function setStatus(text, kind) {
     clearTimeout(statusResetTimer);
@@ -202,27 +136,19 @@
     if (kind === 'transient') {
       statusResetTimer = setTimeout(() => {
         if (!state.busy) {
-          statusText.textContent = t('ready');
+          statusText.textContent = state.modelEntries.length ? t('ready') : t('noModel');
           statusbar.classList.remove('error');
         }
       }, 5000);
     }
   }
 
-  function isCustomSelected() {
-    if (state.modelKind === 'custom') return true;
-    const entries = Array.isArray(state.modelEntries) ? state.modelEntries : [];
-    const entry = entries.find((item) => item.value === state.model);
-    return !!entry && entry.kind === 'custom';
-  }
-
-  function selectionKind(entries, model) {
-    const entry = (Array.isArray(entries) ? entries : []).find((item) => item.value === model);
-    return entry && entry.kind === 'custom' ? 'custom' : 'qoder';
+  function hasModel() {
+    return state.modelEntries.length > 0;
   }
 
   function setStaticTexts() {
-    document.title = 'Lilith · Qoder';
+    document.title = 'Lilith · Chat';
     document.querySelectorAll('[data-i18n]').forEach((el) => {
       const key = el.dataset.i18n;
       el.textContent = t(key);
@@ -234,10 +160,7 @@
     manageModelsBtn.title = t('manageModels');
     minimizeBtn.title = t('minimize');
     closeBtn.title = t('close');
-    workspaceBtn.title = state.workspace || '';
     input.placeholder = t('placeholder');
-    sessionDot.title = state.sessionId ? t('sessionActive') : t('sessionNew');
-    yoloWarning.hidden = state.mode !== 'yolo';
   }
 
   function setLang(nextLang) {
@@ -245,7 +168,6 @@
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
     setStaticTexts();
     renderModelOptions(state.modelEntries, state.model);
-    renderModeOptions(state.modes, state.mode);
     renderAll();
   }
 
@@ -262,20 +184,8 @@
   function renderModelOptions(entries, selected) {
     const current = selected || state.model;
     const list = Array.isArray(entries) ? entries.slice() : [];
-    const hasCurrent = list.some((entry) => entry.value === current);
-    if (current && !hasCurrent) {
-      list.push({
-        value: current,
-        label: current,
-        kind: current.startsWith('custom:') ? 'custom' : 'qoder',
-      });
-    }
-    const groups = { qoder: [], openai: [], anthropic: [] };
+    const groups = { openai: [], anthropic: [] };
     list.forEach((entry) => {
-      if (!entry || entry.kind !== 'custom') {
-        groups.qoder.push(entry || {});
-        return;
-      }
       const type = entry.type === 'anthropic' ? 'anthropic' : 'openai';
       groups[type].push(entry);
     });
@@ -288,41 +198,23 @@
       items.forEach((entry) => {
         const option = document.createElement('option');
         option.value = entry.value || '';
-        const suffix = entry.kind === 'custom'
-          ? (entry.api === 'responses' ? t('responsesSuffix') : (entry.effort ? t('reasoningSuffix') : ''))
-          : '';
+        const suffix = entry.api === 'responses' ? t('responsesSuffix') : (entry.effort ? t('reasoningSuffix') : '');
         option.textContent = `${entry.label || entry.value || '—'}${suffix}`;
-        option.title = entry.kind === 'custom' && entry.model ? entry.model : (entry.label || '');
+        option.title = entry.model || entry.label || '';
         option.selected = entry.value === current;
         group.appendChild(option);
       });
       modelSel.appendChild(group);
     };
-    addGroup(t('qoderGroup'), groups.qoder);
-    addGroup(t('customOpenAIGroup'), groups.openai);
-    addGroup(t('customAnthropicGroup'), groups.anthropic);
+    addGroup(t('modelGroupOpenAI'), groups.openai);
+    addGroup(t('modelGroupAnthropic'), groups.anthropic);
     if (!list.length) {
       const option = document.createElement('option');
-      option.value = current || '';
-      option.textContent = current || '—';
+      option.value = '';
+      option.textContent = '—';
       modelSel.appendChild(option);
     }
-  }
-
-  function renderModeOptions(modes, selected) {
-    const list = Array.isArray(modes) ? modes : [];
-    const current = selected || state.mode;
-    modeSel.textContent = '';
-    list.forEach((mode) => {
-      const option = document.createElement('option');
-      option.value = mode.key;
-      option.textContent = (mode.label && (mode.label[lang] || mode.label.zh)) || mode.key;
-      option.title = (mode.hint && (mode.hint[lang] || mode.hint.zh)) || '';
-      option.selected = mode.key === current;
-      modeSel.appendChild(option);
-    });
-    const active = list.find((mode) => mode.key === current);
-    modeSel.title = active && active.hint ? (active.hint[lang] || active.hint.zh || '') : '';
+    modelSel.disabled = state.busy || !list.length;
   }
 
   function makeMeta(message) {
@@ -330,7 +222,6 @@
     meta.className = 'msg-meta';
     const parts = [];
     if (message.model) parts.push(message.model);
-    if (Number.isFinite(message.credits) && message.credits > 0) parts.push(formatCredits(message.credits));
     if (Number.isFinite(message.durationMs) && message.durationMs > 0) {
       parts.push(`${(message.durationMs / 1000).toFixed(1)}s`);
     }
@@ -346,104 +237,6 @@
       meta.appendChild(span);
     });
     return meta;
-  }
-
-  function makeToolElement(tool) {
-    const details = document.createElement('details');
-    details.className = 'tool';
-    if (tool.state === 'running') details.classList.add('running');
-    else if (tool.isError) details.classList.add('error');
-    else details.classList.add('done');
-    details.dataset.toolId = tool.id;
-
-    const summary = document.createElement('summary');
-    const dot = document.createElement('span');
-    dot.className = 'tool-status';
-    const name = document.createElement('span');
-    name.className = 'tool-name';
-    name.textContent = tool.name || 'Tool';
-    const label = document.createElement('span');
-    label.className = 'tool-summary';
-    label.textContent = tool.summary || (tool.state === 'running' ? t('toolRunning') : '');
-    const chevron = document.createElement('span');
-    chevron.className = 'tool-chevron';
-    chevron.textContent = '›';
-    summary.append(dot, name, label, chevron);
-
-    const body = document.createElement('div');
-    body.className = 'tool-body';
-    if (tool.inputText) {
-      const inputLabel = document.createElement('div');
-      inputLabel.className = 'tool-label';
-      inputLabel.textContent = t('toolInput');
-      const inputPre = document.createElement('pre');
-      inputPre.textContent = tool.inputText;
-      body.append(inputLabel, inputPre);
-    }
-    if (tool.result) {
-      const resultLabel = document.createElement('div');
-      resultLabel.className = 'tool-label';
-      resultLabel.textContent = t('toolResult');
-      const resultPre = document.createElement('pre');
-      resultPre.textContent = tool.result;
-      body.append(resultLabel, resultPre);
-    }
-    details.append(summary, body);
-    return details;
-  }
-
-  function makeToolsGroup(tools, options) {
-    const list = Array.isArray(tools) ? tools : [];
-    const openIds = (options && options.openIds) || new Set();
-    const running = list.find((tool) => tool.state === 'running');
-    const failures = list.filter((tool) => tool.isError).length;
-
-    const details = document.createElement('details');
-    details.className = 'tool-calls';
-    if (running) details.classList.add('running');
-    else if (failures) details.classList.add('error');
-    else details.classList.add('done');
-    if (options && options.open) details.open = true;
-
-    const summary = document.createElement('summary');
-    const dot = document.createElement('span');
-    dot.className = 'tool-calls-status';
-    const name = document.createElement('span');
-    name.className = 'tool-calls-name';
-    name.textContent = t('toolCalls');
-    const count = document.createElement('span');
-    count.className = 'tool-calls-count';
-    count.textContent = String(list.length);
-    const meta = document.createElement('span');
-    meta.className = 'tool-calls-meta';
-    if (running) {
-      meta.textContent = running.summary || running.name || '';
-      meta.title = meta.textContent;
-    } else if (failures) {
-      meta.textContent = fill(t('toolFailed'), { n: failures });
-    }
-    const chevron = document.createElement('span');
-    chevron.className = 'tool-calls-chevron';
-    chevron.textContent = '›';
-    summary.append(dot, name, count, meta, chevron);
-
-    const body = document.createElement('div');
-    body.className = 'tool-list';
-    list.forEach((tool) => {
-      const el = makeToolElement(tool);
-      if (openIds.has(tool.id)) el.open = true;
-      body.appendChild(el);
-    });
-    details.append(summary, body);
-    return details;
-  }
-
-  function errorText(value) {
-    const code = String(value || '');
-    if (code === 'qoder-timeout') return t('errorQoderTimeout');
-    if (code === 'custom-timeout') return t('errorCustomTimeout');
-    if (code === 'timeout') return t('errorTimeout');
-    return code;
   }
 
   function renderRichText(container, text, streaming) {
@@ -514,6 +307,13 @@
     return details;
   }
 
+  function localizedError(text) {
+    const value = String(text || '');
+    if (value === 'timeout' || value === '请求超时') return t('timeoutError');
+    if (value === 'aborted' || value === '请求已取消') return t('abortedError');
+    return value;
+  }
+
   function makeMessageElement(message) {
     const row = document.createElement('div');
     row.className = `msg ${message.role}`;
@@ -527,7 +327,7 @@
 
     const avatar = document.createElement('div');
     avatar.className = 'avatar';
-    avatar.textContent = 'Q';
+    avatar.textContent = 'L';
     const body = document.createElement('div');
     body.className = 'assistant-body';
 
@@ -536,16 +336,13 @@
     const textEl = document.createElement('div');
     textEl.className = 'assistant-text';
     if (message.text) renderRichText(textEl, message.text, false);
-    else if (!(message.tools && message.tools.length) && !message.error) textEl.textContent = t('emptyReply');
+    else if (!message.error) textEl.textContent = t('emptyReply');
     body.appendChild(textEl);
 
-    if (message.tools && message.tools.length) {
-      body.appendChild(makeToolsGroup(message.tools));
-    }
     if (message.error && message.errorText) {
       const note = document.createElement('div');
       note.className = 'error-note';
-      note.textContent = t('errorPrefix') + errorText(message.errorText);
+      note.textContent = t('errorPrefix') + localizedError(message.errorText);
       body.appendChild(note);
     } else if (message.interrupted) {
       const note = document.createElement('div');
@@ -553,9 +350,7 @@
       note.textContent = t('interrupted');
       body.appendChild(note);
     }
-    if (message.model || Number.isFinite(message.credits) || Number.isFinite(message.durationMs)) {
-      body.appendChild(makeMeta(message));
-    }
+    if (message.model || Number.isFinite(message.durationMs)) body.appendChild(makeMeta(message));
     row.append(avatar, body);
     return row;
   }
@@ -565,7 +360,7 @@
     row.className = 'msg assistant draft';
     const avatar = document.createElement('div');
     avatar.className = 'avatar';
-    avatar.textContent = 'Q';
+    avatar.textContent = 'L';
     const body = document.createElement('div');
     body.className = 'assistant-body';
 
@@ -581,23 +376,19 @@
 
     const textEl = document.createElement('div');
     textEl.className = 'assistant-text';
-    const toolsEl = document.createElement('div');
-    toolsEl.className = 'tools-slot';
     const thinkEl = document.createElement('div');
     thinkEl.className = 'thinking-line';
 
-    body.append(reasoningEl, textEl, toolsEl, thinkEl);
+    body.append(reasoningEl, textEl, thinkEl);
     row.append(avatar, body);
 
     draftNode = row;
     draftTextEl = textEl;
-    draftToolsEl = toolsEl;
     draftThinkEl = thinkEl;
     draftReasonEl = reasoningEl;
     draftReasonTextEl = reasoningText;
     updateDraftReasoning(draft);
     updateDraftText(draft);
-    updateDraftTools(draft.tools || []);
     updateDraftThinking(draft);
     return row;
   }
@@ -627,29 +418,11 @@
     }
   }
 
-  function updateDraftTools(tools) {
-    if (!draftToolsEl) return;
-    draftTools = tools || [];
-    if (!draftTools.length) {
-      draftToolsEl.textContent = '';
-      draftToolsEl.hidden = true;
-      return;
-    }
-    draftToolsEl.hidden = false;
-    const prevGroup = draftToolsEl.querySelector('details.tool-calls');
-    const groupOpen = !!prevGroup && prevGroup.open;
-    const openIds = new Set(
-      [...draftToolsEl.querySelectorAll('details.tool[open]')].map((el) => el.dataset.toolId)
-    );
-    draftToolsEl.textContent = '';
-    draftToolsEl.appendChild(makeToolsGroup(draftTools, { open: groupOpen, openIds }));
-  }
-
   function updateDraftThinking(draft) {
     if (!draftThinkEl) return;
     const thinking = !!(draft && draft.thinking);
     const hasReasoning = !!(draft && draft.reasoning);
-    const empty = !draft || (!draft.text && !(draft.tools && draft.tools.length));
+    const empty = !draft || !draft.text;
     draftThinkEl.hidden = hasReasoning || (!thinking && !empty);
     if (draftThinkEl.hidden) return;
     draftThinkEl.textContent = '';
@@ -657,7 +430,7 @@
     dots.className = 'thinking-dots';
     dots.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
     const label = document.createElement('span');
-    label.textContent = thinking ? t('thinking') : (isCustomSelected() ? t('connecting') : t('starting'));
+    label.textContent = thinking ? t('thinking') : t('connecting');
     draftThinkEl.append(dots, label);
   }
 
@@ -666,7 +439,6 @@
     forceScroll = false;
     draftNode = null;
     draftTextEl = null;
-    draftToolsEl = null;
     draftThinkEl = null;
     draftReasonEl = null;
     draftReasonTextEl = null;
@@ -676,7 +448,7 @@
     const hasDraft = state.busy;
     welcomeEl.classList.toggle('hidden', state.messages.length > 0 || hasDraft);
     if (hasDraft) {
-      const draft = state.draft || { text: '', thinking: false, tools: [], credits: 0 };
+      const draft = state.draft || { text: '', reasoning: '', thinking: false };
       messagesEl.appendChild(makeDraftElement(draft));
     }
     updateChrome();
@@ -685,58 +457,35 @@
 
   function updateChrome() {
     const busy = !!state.busy;
-    const custom = isCustomSelected();
-    modelSel.disabled = busy;
-    modeSel.disabled = busy || custom;
-    workspaceBtn.disabled = busy || custom;
+    const models = hasModel();
+    modelSel.disabled = busy || !models;
+    modelWarning.hidden = models;
     stopBtn.hidden = !busy;
     spinner.hidden = !busy;
     if (busy) {
-      setStatus(custom ? t('workingCustom') : t('working'));
-      const credits = formatCredits(state.draft && state.draft.credits);
-      statusCredits.textContent = credits;
-    } else if (!statusbar.classList.contains('error')) {
-      statusCredits.textContent = '';
+      setStatus(state.draft && state.draft.thinking ? t('thinking') : t('working'));
+    } else if (statusbar.classList.contains('error')) {
+      // keep the error visible
+    } else if (!models) {
+      setStatus(t('noModel'));
+    } else if (/^(就绪|Ready|还没有添加模型|No models yet)$/.test(statusText.textContent || '')) {
+      setStatus(t('ready'));
     }
-    sessionDot.classList.toggle('active', !!state.sessionId && !custom);
-    sessionDot.title = custom
-      ? t('sessionCustom')
-      : (state.sessionId ? t('sessionActive') : t('sessionNew'));
-    workspaceName.textContent = basename(state.workspace);
-    workspaceBtn.title = state.workspace || '';
-    workspacePath.textContent = state.workspace || '';
-    yoloWarning.hidden = custom || state.mode !== 'yolo';
-    customWarning.hidden = !custom;
-    sendBtn.disabled = busy || !input.value.trim();
+    sendBtn.disabled = busy || !models || !input.value.trim();
   }
 
   // ------------------------------------------------------------- state sync
   function applyState(next) {
     if (!next) return;
-    const model = next.model || '';
-    const modelEntries = Array.isArray(next.modelEntries)
-      ? next.modelEntries
-      : (Array.isArray(next.models)
-        ? next.models.map((name) => ({ value: name, label: name, kind: 'qoder' }))
-        : state.modelEntries);
     state = {
-      sessionId: next.sessionId || null,
-      model,
-      modelKind: next.modelKind === 'custom' ? 'custom' : selectionKind(modelEntries, model),
-      modelEntries,
-      mode: next.mode || 'yolo',
-      workspace: next.workspace || '',
+      model: next.model || '',
+      modelEntries: Array.isArray(next.modelEntries) ? next.modelEntries : [],
       messages: Array.isArray(next.messages) ? next.messages : [],
-      models: Array.isArray(next.models) ? next.models : state.models,
-      modes: Array.isArray(next.modes) && next.modes.length ? next.modes : state.modes,
       busy: !!next.busy,
       draft: next.draft || null,
     };
-    setStaticTexts();
     renderModelOptions(state.modelEntries, state.model);
-    renderModeOptions(state.modes, state.mode);
     renderAll();
-    if (!state.busy && !statusText.textContent) setStatus(t('ready'));
   }
 
   function scheduleDraftPaint() {
@@ -753,43 +502,16 @@
   }
 
   function syncDraftText(event) {
-    if (!state.draft) state.draft = { text: '', reasoning: '', thinking: false, tools: draftTools, credits: 0 };
+    if (!state.draft) state.draft = { text: '', reasoning: '', thinking: false };
     state.draft.text = event.text || '';
     if (typeof event.reasoning === 'string') state.draft.reasoning = event.reasoning;
     if (typeof event.thinking === 'boolean') state.draft.thinking = event.thinking;
-    if (Number.isFinite(event.credits)) state.draft.credits = event.credits;
     if (!draftNode) {
       welcomeEl.classList.add('hidden');
       messagesEl.appendChild(makeDraftElement(state.draft));
     }
     scheduleDraftPaint();
-    const credits = formatCredits(state.draft.credits);
-    if (credits) statusCredits.textContent = credits;
-  }
-
-  function mergeTool(tool, result) {
-    if (!state.busy) return;
-    if (!state.draft) state.draft = { text: '', thinking: false, tools: [], credits: 0 };
-    const tools = state.draft.tools || (state.draft.tools = []);
-    let entry = tools.find((item) => item.id === tool.id);
-    if (!entry) {
-      entry = { ...tool };
-      tools.push(entry);
-    } else {
-      Object.assign(entry, tool);
-    }
-    if (result) {
-      entry.result = result.result || '';
-      entry.isError = result.isError === true;
-      entry.state = 'done';
-    }
-    if (!draftNode) {
-      welcomeEl.classList.add('hidden');
-      messagesEl.appendChild(makeDraftElement(state.draft));
-    }
-    updateDraftTools(tools);
-    updateDraftThinking(state.draft);
-    scrollToBottom(false);
+    if (state.draft.thinking) setStatus(t('thinking'));
   }
 
   function handleEvent(event) {
@@ -805,45 +527,11 @@
         if (state.draft) {
           state.draft.thinking = !!event.value;
           updateDraftThinking(state.draft);
+          if (event.value) setStatus(t('thinking'));
         }
-        break;
-      case 'credits':
-        if (state.draft) {
-          state.draft.credits = Number(event.credits) || 0;
-          const credits = formatCredits(state.draft.credits);
-          if (credits) statusCredits.textContent = credits;
-        }
-        break;
-      case 'tool':
-        mergeTool(event.tool, null);
-        break;
-      case 'tool-result':
-        mergeTool({ id: event.id, state: 'done' }, event);
-        break;
-      case 'run-meta':
-        if (event.sessionId) {
-          state.sessionId = event.sessionId;
-          sessionDot.classList.add('active');
-          sessionDot.title = t('sessionActive');
-        }
-        break;
-      case 'models':
-        if (Array.isArray(event.modelEntries)) {
-          state.modelEntries = event.modelEntries;
-          state.modelKind = selectionKind(state.modelEntries, state.model);
-        } else if (Array.isArray(event.models)) {
-          state.models = event.models;
-          state.modelEntries = event.models.map((name) => ({ value: name, label: name, kind: 'qoder' }));
-          state.modelKind = 'qoder';
-        }
-        renderModelOptions(state.modelEntries, state.model);
-        updateChrome();
         break;
       case 'run-status':
         if (event.status === 'stopping') setStatus(t('stopping'));
-        break;
-      case 'notice':
-        if (event.code === 'session-reset') setStatus(t('sessionReset'), 'transient');
         break;
       case 'done':
         applyState(event.state);
@@ -869,7 +557,7 @@
   function resizeInput() {
     input.style.height = 'auto';
     input.style.height = `${Math.min(150, input.scrollHeight)}px`;
-    sendBtn.disabled = state.busy || !input.value.trim();
+    sendBtn.disabled = state.busy || !hasModel() || !input.value.trim();
   }
 
   function sendErrorText(code) {
@@ -877,20 +565,19 @@
       case 'busy': return t('busySend');
       case 'empty': return t('emptySend');
       case 'too-long': return t('tooLong');
-      case 'qoder-not-found': return t('qoderMissing');
-      case 'spawn-failed': return t('spawnFailed');
       case 'invalid-model': return t('invalidModel');
+      case 'no-model': return t('noModel');
       default: return fill(t('requestFailed'), { error: code || 'unknown' });
     }
   }
 
   async function submit() {
-    if (state.busy) return;
+    if (state.busy || !hasModel()) return;
     const text = input.value.trim();
     if (!text) return;
     let result;
     try {
-      result = await window.qoder.send(text);
+      result = await window.lilithChat.send(text);
     } catch (error) {
       setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
       return;
@@ -908,7 +595,7 @@
   async function stopRun() {
     stopBtn.disabled = true;
     try {
-      await window.qoder.stop();
+      await window.lilithChat.stop();
     } catch {}
     stopBtn.disabled = false;
   }
@@ -920,7 +607,7 @@
       return;
     }
     try {
-      const result = await window.qoder.newChat();
+      const result = await window.lilithChat.newChat();
       if (result && result.state) applyState(result.state);
       input.focus();
     } catch (error) {
@@ -928,23 +615,10 @@
     }
   }
 
-  async function chooseWorkspace() {
-    if (state.busy) return;
-    if (state.messages.length && !window.confirm(t('workspaceConfirm'))) return;
-    let result;
-    try {
-      result = await window.qoder.chooseWorkspace();
-    } catch (error) {
-      setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
-      return;
-    }
-    if (result && result.ok && result.state) applyState(result.state);
-    else if (result && !result.ok && result.error !== 'canceled') setStatus(sendErrorText(result.error), 'error');
-  }
-
   async function onModelChange() {
     const value = modelSel.value;
-    const result = await window.qoder.setModel(value).catch(() => null);
+    if (!value) return;
+    const result = await window.lilithChat.setModel(value).catch(() => null);
     if (result && result.ok) {
       if (result.state) applyState(result.state);
       return;
@@ -955,37 +629,26 @@
 
   async function openModelsPage() {
     try {
-      const result = await window.qoder.openModels();
+      const result = await window.lilithChat.openModels();
       if (result && result.ok === false) {
-        setStatus(fill(t('manageFailed'), { error: result.error || t('unknownError') }), 'error');
+        setStatus(fill(t('manageFailed'), { error: result.error || 'unknown' }), 'error');
       }
     } catch (error) {
       setStatus(fill(t('manageFailed'), { error: String((error && error.message) || error) }), 'error');
     }
   }
 
-  async function onModeChange() {
-    const value = modeSel.value;
-    const result = await window.qoder.setMode(value).catch(() => null);
-    if (!result || !result.ok) {
-      setStatus(sendErrorText(result && result.error), 'error');
-      renderModeOptions(state.modes, state.mode);
-    }
-  }
-
   // ------------------------------------------------------------- wiring
   newChatBtn.addEventListener('click', newChat);
-  minimizeBtn.addEventListener('click', () => window.qoder.minimize());
-  closeBtn.addEventListener('click', () => window.qoder.close());
+  minimizeBtn.addEventListener('click', () => window.lilithChat.minimize());
+  closeBtn.addEventListener('click', () => window.lilithChat.close());
   manageModelsBtn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
     openModelsPage();
   });
   stopBtn.addEventListener('click', stopRun);
-  workspaceBtn.addEventListener('click', chooseWorkspace);
   modelSel.addEventListener('change', onModelChange);
-  modeSel.addEventListener('change', onModeChange);
   sendBtn.addEventListener('click', submit);
 
   input.addEventListener('input', resizeInput);
@@ -996,20 +659,20 @@
     }
   });
 
-  window.qoder.onEvent(handleEvent);
+  window.lilithChat.onEvent(handleEvent);
 
   (async () => {
     resizeInput();
     try {
       const [initial, info] = await Promise.all([
-        window.qoder.getState(),
-        window.qoder.getLang().catch(() => null),
+        window.lilithChat.getState(),
+        window.lilithChat.getLang().catch(() => null),
       ]);
       if (info && info.lang) lang = info.lang === 'en' ? 'en' : 'zh';
       document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
       if (initial) applyState(initial);
       setLang(lang);
-      setStatus(t('ready'));
+      setStatus(hasModel() ? t('ready') : t('noModel'));
     } catch (error) {
       setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
     }

@@ -4,20 +4,19 @@
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Lilith · Qoder</title>
+<title>Lilith · Chat</title>
 <link rel="stylesheet" href="./chat.css" />
 </head>
 <body>
   <div id="app">
     <header id="titlebar">
       <div class="brand">
-        <span class="brand-mark">Q</span>
-        <span class="brand-name">Qoder</span>
-        <span class="brand-sep">×</span>
-        <span class="brand-pet">Lilith</span>
+        <span class="brand-mark">L</span>
+        <span class="brand-name">Lilith</span>
+        <span class="brand-sep">·</span>
+        <span class="brand-pet">Chat</span>
       </div>
       <div class="title-actions">
-        <span id="session-dot" class="session-dot" title=""></span>
         <button id="minimize" class="win-button" type="button">–</button>
         <button id="closewin" class="win-button close" type="button">×</button>
         <button id="newchat" class="ghost-button" type="button" data-i18n="newChat">新对话</button>
@@ -32,34 +31,21 @@
         </span>
         <select id="model"></select>
       </div>
-      <label class="control">
-        <span class="control-label" data-i18n="mode">模式</span>
-        <select id="mode"></select>
-      </label>
-      <button id="workspace" class="workspace" type="button" title="">
-        <span class="workspace-icon">⌂</span>
-        <span id="workspace-name">~</span>
-      </button>
     </section>
 
-    <div id="yolo-warning" class="yolo-warning" hidden>
+    <div id="model-warning" class="model-warning" hidden>
       <span class="warn-dot"></span>
-      <span data-i18n="yoloWarning">YOLO：工具调用不再确认，请确认工作目录正确。</span>
-    </div>
-
-    <div id="custom-warning" class="yolo-warning model-warning" hidden>
-      <span class="warn-dot"></span>
-      <span data-i18n="customWarning">自定义模型直连 OpenAI 兼容接口，不启用 Qoder 工具、权限模式和工作目录。</span>
+      <span data-i18n="noModelWarning">还没有添加模型。点上面的「添加模型」填写接口信息。</span>
     </div>
 
     <main id="messages" aria-live="polite">
       <div id="welcome" class="welcome">
-        <div class="welcome-orbit"><span>Q</span></div>
-        <h1 data-i18n="welcomeTitle">直接和 Qoder 说话</h1>
-        <p data-i18n="welcomeBody">这个窗口会以你选定的模型和权限模式运行 Qoder。它可以读文件、跑命令、改代码——尤其是 YOLO 模式下。</p>
+        <div class="welcome-orbit"><span>L</span></div>
+        <h1 data-i18n="welcomeTitle">和莉莉丝聊天</h1>
+        <p data-i18n="welcomeBody">选一个模型，直接开始。回复会以流式出现，思考型模型还会显示思考过程。</p>
         <div class="welcome-hints">
           <span class="hint-chip" data-i18n="hintModel">模型可随时切换</span>
-          <span class="hint-chip" data-i18n="hintMode">模式决定工具权限</span>
+          <span class="hint-chip" data-i18n="hintTypes">OpenAI · Anthropic · Reasoning</span>
           <span class="hint-chip" data-i18n="hintEnter">Enter 发送</span>
         </div>
       </div>
@@ -71,14 +57,13 @@
         <span id="status-text"></span>
       </div>
       <div class="status-right">
-        <span id="status-credits" class="credits"></span>
         <button id="stop" class="stop-button" type="button" hidden data-i18n="stop">停止</button>
       </div>
     </div>
 
     <footer id="composer">
       <div class="composer-box">
-        <textarea id="input" rows="1" data-i18n-placeholder="placeholder" placeholder="交代一件事，或直接问…"></textarea>
+        <textarea id="input" rows="1" data-i18n-placeholder="placeholder" placeholder="和莉莉丝说点什么…"></textarea>
         <button id="send" class="send-button" type="button" disabled>
           <span data-i18n="send">发送</span>
           <span class="send-arrow">↑</span>
@@ -86,7 +71,6 @@
       </div>
       <div class="composer-foot">
         <span data-i18n="enterHint">Enter 发送 · Shift+Enter 换行</span>
-        <span id="workspace-path" class="workspace-path"></span>
       </div>
     </footer>
   </div>

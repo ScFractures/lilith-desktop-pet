@@ -89,7 +89,6 @@ const state = {
   hover: false,
   cursor: { x: 0, y: 0, inside: false },
   ignoreState: true,
-  balanceBusy: false,
   sleepWin: false,
   prevSleepWin: false,
   nowOverride: null,
@@ -236,70 +235,6 @@ function say(text, duration = 2300) {
   bubbleEl.classList.add('show');
   clearTimeout(bubbleTimer);
   bubbleTimer = setTimeout(() => bubbleEl.classList.remove('show'), duration);
-}
-
-function fillTemplate(template, vars) {
-  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (vars[key] == null ? '' : String(vars[key])));
-}
-
-function expiryLabel(ts) {
-  if (!Number.isFinite(ts)) return '';
-  try {
-    return new Intl.DateTimeFormat(state.lang === 'zh' ? 'zh-CN' : 'en-US', {
-      month: 'short',
-      day: 'numeric',
-    }).format(new Date(ts));
-  } catch {
-    return '';
-  }
-}
-
-function qoderBalanceText(r) {
-  const d = L || {};
-  const usedPct = Math.max(0, Math.min(100, Math.round(Number(r.usedPercentage) || 0)));
-  const unit = r.unit || 'credits';
-  let text;
-  if (Number.isFinite(r.total) && r.total > 0) {
-    const low = r.remaining / r.total <= 0.1;
-    text = fillTemplate(low ? d.qoderBalanceLow : d.qoderBalanceResult, {
-      remaining: r.remaining,
-      total: r.total,
-      unit,
-      usedPct,
-    });
-  } else {
-    text = fillTemplate(d.qoderBalanceResultNoTotal, { remaining: r.remaining, unit, usedPct });
-  }
-  const date = expiryLabel(r.expiresAt);
-  if (date) text += fillTemplate(d.qoderBalanceExpires, { date });
-  return text + (d.qoderBalanceEnd || '');
-}
-
-async function speakQoderBalance() {
-  if (state.balanceBusy) return;
-  state.balanceBusy = true;
-  const d = L || {};
-  say(d.qoderBalanceChecking || '…', 20000);
-  try {
-    const r = await window.pet.qoderBalance();
-    if (!r || !r.ok) {
-      if (r && r.stale && typeof r.remaining === 'number') {
-        say((d.qoderBalanceStalePrefix || '') + qoderBalanceText(r), 8000);
-      } else {
-        say(fillTemplate(d.qoderBalanceError, { error: (r && r.error) || d.unknownError || '' }), 7000);
-      }
-      return;
-    }
-    if (r.isQuotaExceeded || r.remaining <= 0) {
-      say((d.qoderBalanceExhausted || '') + (d.qoderBalanceEnd || ''), 8000);
-    } else {
-      say(qoderBalanceText(r), 8000);
-    }
-  } catch (e) {
-    say(fillTemplate(d.qoderBalanceError, { error: String((e && e.message) || e) }), 7000);
-  } finally {
-    state.balanceBusy = false;
-  }
 }
 
 function anchorPoint() {
@@ -696,7 +631,6 @@ window.pet.on('pet-event', (name, data) => {
 window.pet.on('pet-cmd', (cmd) => {
   if (!state.loaded) return;
   if (cmd === 'pat') doPat();
-  else if (cmd === 'qoder-balance') speakQoderBalance();
   else if (cmd === 'walk') { wakeUp(); if (state.mode === 'idle') doWalk(); }
   else if (cmd === 'spin') { wakeUp(); doSpin(); }
   else if (cmd === 'jump') { wakeUp(); doJump(); }
