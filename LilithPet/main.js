@@ -13,7 +13,7 @@ if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-c
 // Window sizes include ~150-260px of transparent headroom above the pet so a jump never clips her head
 const WINDOW_SIZES = { small: [270, 458], medium: [340, 560], large: [430, 725] };
 // Model key -> i18n label key. The GLB files live in LilithPet/assets/.
-const MODELS = { lilith: 'modelLilith', lilith_maou: 'modelMaou' };
+const MODELS = { lilith: 'modelLilith', lilith_maou: 'modelMaou', deepseek_m: 'modelDeepseek' };
 const DEFAULT_MODEL = 'lilith';
 const FLOOR_INSET = 24;
 const GRAVITY = 2600;
@@ -732,6 +732,26 @@ function runInteractionTest() {
     let persistedModel = null;
     try { persistedModel = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'pet-state.json'), 'utf8')).model; } catch {}
     console.log('[test] model switch:', JSON.stringify({ switched: modelMao, model: await js(`window.__pet.model`), persisted: persistedModel }));
+
+    selectModel('deepseek_m');
+    let modelDeepseek = false;
+    for (let i = 0; i < 40; i++) {
+      const s = JSON.parse(await js(`JSON.stringify({ model: window.__pet.model, loaded: window.__pet.loaded })`));
+      if (s.model === 'deepseek_m' && s.loaded) { modelDeepseek = true; break; }
+      await wait(200);
+    }
+    await wait(600);
+    await shot('m_model_deepseek');
+    console.log('[test] deepseek labels:', await js(`window.pet.i18nGet().then(p => JSON.stringify({ menu: p.dict.menuModel, label: p.dict.modelDeepseek }))`));
+    ev({ type: 'mouseMove', x: 170, y: 400 });
+    await wait(300);
+    console.log('[test] deepseek hover:', await js(`JSON.stringify({ ign: window.__pet.ignoreState, hover: window.__pet.hover })`));
+    ev({ type: 'mouseMove', x: 10, y: 10 });
+    await wait(200);
+    let persistedDeepseek = null;
+    try { persistedDeepseek = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'pet-state.json'), 'utf8')).model; } catch {}
+    console.log('[test] deepseek switch:', JSON.stringify({ switched: modelDeepseek, model: await js(`window.__pet.model`), persisted: persistedDeepseek }));
+
     selectModel('lilith');
     for (let i = 0; i < 40 && (await js(`window.__pet.model`)) !== 'lilith'; i++) await wait(200);
     console.log('[test] model restored:', await js(`window.__pet.model`));

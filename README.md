@@ -12,7 +12,8 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS double-click launcher (must stay next to LilithPet/)
 ├── Lilith 桌宠.cmd       # Windows launcher (double-click; must stay next to LilithPet/)
 ├── Lilith/               # original 3D model source (FBX + textures)
-└── Lilith_mao/           # Maou (魔王) model source (FBX + textures; keeps the original folder name)
+├── Lilith_mao/           # Maou (魔王) model source (FBX + textures; keeps the original folder name)
+└── Deepseek_M/           # DeepSeek M model source (FBX + textures)
 ```
 
 ## Getting started
@@ -80,7 +81,7 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 
 ## Models
 
-Two models are included: the original Lilith (`LilithPet/assets/lilith.glb`) and Lilith Maou (`LilithPet/assets/lilith_maou.glb`, source in `Lilith_mao/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
+Three models are included: the original Lilith (`LilithPet/assets/lilith.glb`), Lilith Maou (`LilithPet/assets/lilith_maou.glb`, source in `Lilith_mao/`) and DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
 
 To regenerate a GLB from its FBX source with Blender 4.x or newer:
 
@@ -88,6 +89,10 @@ To regenerate a GLB from its FBX source with Blender 4.x or newer:
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
   Lilith_mao/Lilith_mao.fbx LilithPet/assets/lilith_maou.glb \
   --texture Lilith_mao/Lilith_mao/Lilith_mao_basecolor.JPEG
+
+Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
+  Deepseek_M/Deepseek_M.fbx LilithPet/assets/deepseek_m.glb \
+  --texture Deepseek_M/Deepseek_M/Deepseek_M_basecolor.JPEG
 ```
 
 The script joins the meshes, decimates to ~260k triangles, downscales the 8K atlas to 4K and exports a Y-up GLB. It never modifies the source files.

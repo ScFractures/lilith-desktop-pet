@@ -12,7 +12,8 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS 双击启动器（需与 LilithPet 放在同一目录）
 ├── Lilith 桌宠.cmd       # Windows 双击启动器（需与 LilithPet 同目录）
 ├── Lilith/               # 原版 3D 模型源文件（FBX + 贴图）
-└── Lilith_mao/           # 魔王（Maou）模型源文件（FBX + 贴图；目录沿用原文件名）
+├── Lilith_mao/           # 魔王（Maou）模型源文件（FBX + 贴图；目录沿用原文件名）
+└── Deepseek_M/           # DeepSeek M 模型源文件（FBX + 贴图）
 ```
 
 ## 运行
@@ -80,7 +81,7 @@ npm start
 
 ## 模型
 
-应用内置两个模型：原版莉莉丝（`LilithPet/assets/lilith.glb`）和魔王版莉莉丝（`LilithPet/assets/lilith_maou.glb`，源文件在 `Lilith_mao/`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
+应用内置三个模型：原版莉莉丝（`LilithPet/assets/lilith.glb`）、魔王版莉莉丝（`LilithPet/assets/lilith_maou.glb`，源文件在 `Lilith_mao/`）和 DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
 
 如需用 Blender 4.x 或更高版本从 FBX 源文件重新生成 GLB：
 
@@ -88,6 +89,10 @@ npm start
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
   Lilith_mao/Lilith_mao.fbx LilithPet/assets/lilith_maou.glb \
   --texture Lilith_mao/Lilith_mao/Lilith_mao_basecolor.JPEG
+
+Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
+  Deepseek_M/Deepseek_M.fbx LilithPet/assets/deepseek_m.glb \
+  --texture Deepseek_M/Deepseek_M/Deepseek_M_basecolor.JPEG
 ```
 
 脚本会合并网格、减面到约 26 万三角面、把 8K 贴图缩到 4K 并导出 Y-up 的 GLB，不会修改源文件。
