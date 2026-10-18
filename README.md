@@ -1,6 +1,6 @@
 # Lilith Desktop Pet
 
-A desktop pet for macOS and Windows (experimental), built with Electron and Three.js. Lilith floats on your desktop, wanders around on her own, idles, sleeps at night — and chats with you through any OpenAI-compatible API.
+A desktop pet for macOS and Windows (experimental), built with Electron and Three.js. Lilith floats on your desktop, wanders around on her own, idles, sleeps at night — and chats with you through OpenAI-compatible, Anthropic or reasoning-model APIs.
 
 [中文](README.zh-CN.md)
 
@@ -74,9 +74,11 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 ## Usage
 
 - Drag the pet to move her; left alone, she walks around, idles, and occasionally talks.
-- Right-click the pet for the menu: size presets, model, actions (chat, pat, walk, spin, jump, greet, sleep) and AI Chat Settings.
-- Open AI Chat Settings, fill in the Base URL, API Key and model name of any OpenAI-compatible endpoint, use the test button, then save.
-- The chat input appears under the pet; press Enter to send, Escape to close. The AI config is stored locally only (under the OS application data directory), and messages go only to the endpoint you configured.
+- Right-click the pet for the menu: size presets, model, actions (chat, pat, walk, spin, jump, greet, sleep), **Chat window**, **Model settings** and the inline AI Chat Settings.
+- **Model settings** keeps several endpoints side by side. Choose **OpenAI compatible** (Chat Completions), **Anthropic** (Messages) or **Reasoning** (Responses API with a reasoning effort), fill in the Base URL, API key and model name, test the connection, then save. Example base URLs: `https://api.deepseek.com/v1`, `https://api.anthropic.com`, or your local server. Keys are stored locally and sent only to the Base URL you enter.
+- **Chat window** opens a separate conversation window. Pick a saved model from the menu at the top, send with Enter, stop a reply while it streams, or start a new chat. Replies stream in live; reasoning returned by the model is shown above the answer.
+- The inline chat input under the pet still works with the endpoint saved in AI Chat Settings — press Enter to send, Escape to close.
+- API settings and chat history are stored locally only (under the OS application data directory), and messages go only to the endpoint you configured.
 - Everything is available in Chinese and English: switch with the Language submenu in the right-click (or tray) menu. The default follows your system language.
 
 ## Models

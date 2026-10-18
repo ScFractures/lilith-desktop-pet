@@ -20,6 +20,8 @@ const STRINGS = {
     langZh: '中文',
     langEn: 'English',
     menuChat: '聊天…',
+    menuChatWindow: '对话窗口…',
+    menuModels: '模型设置…',
     menuPat: '摸摸头',
     menuWalk: '走一走',
     menuSpin: '转个圈',
@@ -35,6 +37,7 @@ const STRINGS = {
     errConfigIncomplete: '配置不完整',
     aiTestProbe: '你好',
     aiSettingsTitle: 'Lilith AI 聊天设置',
+    modelsTitle: '模型设置',
     // pet renderer UI
     chatPlaceholder: '和莉莉丝说点什么…',
     noConfigHint: '还没配置 AI 哦，右键我选「AI 聊天设置」',
@@ -178,6 +181,8 @@ const STRINGS = {
     langZh: '中文',
     langEn: 'English',
     menuChat: 'Chat…',
+    menuChatWindow: 'Chat window…',
+    menuModels: 'Model settings…',
     menuPat: 'Headpat',
     menuWalk: 'Take a walk',
     menuSpin: 'Spin around',
@@ -193,6 +198,7 @@ const STRINGS = {
     errConfigIncomplete: 'Config is incomplete',
     aiTestProbe: 'Hello',
     aiSettingsTitle: 'Lilith AI Chat Settings',
+    modelsTitle: 'Model settings',
     // pet renderer UI
     chatPlaceholder: 'Say something to Lilith…',
     noConfigHint: 'AI isn\'t set up yet — right-click me and choose "AI Chat Settings"',

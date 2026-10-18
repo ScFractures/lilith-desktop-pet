@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>添加模型</title>
+<link rel="stylesheet" href="./models.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="head">
+      <div class="head-text">
+        <h1 id="title">添加模型</h1>
+        <p id="subtitle">接入任意 OpenAI 兼容接口，添加后可在对话窗口中直接选择。</p>
+      </div>
+      <span class="type-pill">OpenAI · Anthropic · Reasoning</span>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="panel-head">
+          <h2 id="list-title">已添加的模型</h2>
+          <span id="list-count" class="count"></span>
+        </div>
+        <div id="model-list" class="model-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 id="form-title">添加模型</h2>
+          <button id="cancel-edit" class="link-button" type="button" hidden>取消编辑</button>
+        </div>
+        <form id="model-form" autocomplete="off" novalidate>
+          <div class="form-grid">
+            <label class="field full">
+              <span id="lbl-type">类型</span>
+              <select id="type">
+                <option value="openai">OpenAI 兼容（Chat Completions）</option>
+                <option value="anthropic">Anthropic（Messages API）</option>
+                <option value="reasoning">Reasoning（OpenAI Responses API）</option>
+              </select>
+            </label>
+            <p id="type-hint" class="hint full"></p>
+            <label class="field full" id="effort-field" hidden>
+              <span id="lbl-effort">推理强度</span>
+              <select id="effort">
+                <option value="low">低</option>
+                <option value="medium">中</option>
+                <option value="high">高</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="lbl-name">显示名称</span>
+              <input id="name" type="text" maxlength="80" placeholder="如 DeepSeek 官方（可留空）" spellcheck="false" />
+            </label>
+            <label class="field">
+              <span id="lbl-model">模型 ID</span>
+              <input id="model-id" type="text" maxlength="160" placeholder="如 deepseek-chat" spellcheck="false" />
+            </label>
+            <label class="field full">
+              <span id="lbl-base">Base URL</span>
+              <input id="base-url" type="text" maxlength="600" placeholder="https://api.deepseek.com/v1" spellcheck="false" />
+            </label>
+            <label class="field full">
+              <span id="lbl-key">API Key</span>
+              <input id="api-key" type="password" maxlength="500" placeholder="sk-…（本地服务可留空）" spellcheck="false" />
+            </label>
+            <p id="key-hint" class="hint full">Key 只保存在本机配置里，并且只会发送到上面填写的 Base URL。</p>
+          </div>
+          <div class="form-foot">
+            <span id="status" class="status"></span>
+            <div class="actions">
+              <button id="test" class="secondary" type="button">测试连接</button>
+              <button id="save" class="primary" type="submit">保存模型</button>
+            </div>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span id="footnote">保存后回到对话窗口，在模型下拉框里选择。</span>
+    </footer>
+  </div>
+  <script src="./models.js"></script>
+</body>
+</html>
