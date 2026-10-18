@@ -99,21 +99,34 @@ const state = {
   nowOverride: null,
   lang: 'zh',
   model: null,
+  persona: null,
 };
 window.__pet = state;
 
 let L = null;
 let phrases = {};
 let AI_SYSTEM_PROMPT = '';
+let thinkingText = '';
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+// lilith_maou is the same character as lilith; only deepseek_m overrides the persona.
+const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_maou: 'lilith', deepseek_m: 'deepseek_m' };
+
+function applyPersona(model = state.model) {
+  if (!L) return;
+  const key = PERSONA_BY_MODEL[model] || 'lilith';
+  const persona = (L.personas && L.personas[key]) || null;
+  phrases = (persona && persona.phrases) || L.phrases;
+  AI_SYSTEM_PROMPT = (persona && persona.systemPrompt) || L.systemPrompt;
+  thinkingText = (persona && persona.thinking) || L.thinking;
+  chatInput.placeholder = (persona && persona.chatPlaceholder) || L.chatPlaceholder;
+  state.persona = key;
+}
 
 function applyDict(payload) {
   L = payload.dict;
-  phrases = L.phrases;
-  AI_SYSTEM_PROMPT = L.systemPrompt;
-  chatInput.placeholder = L.chatPlaceholder;
   document.documentElement.lang = payload.lang === 'zh' ? 'zh-CN' : 'en';
   state.lang = payload.lang;
+  applyPersona();
 }
 window.pet.on('i18n', (payload) => applyDict(payload));
 
@@ -268,7 +281,7 @@ async function sendChat() {
   }
   chatInput.value = '';
   state.chatBusy = true;
-  say(L.thinking, 60000);
+  say(thinkingText || L.thinking, 60000);
   state.chatHistory.push({ role: 'user', content: text });
   if (state.chatHistory.length > 14) state.chatHistory.splice(0, state.chatHistory.length - 14);
   let res = null;
@@ -743,7 +756,11 @@ window.pet.on('pet-visibility', (visible) => {
 
 window.pet.on('pet-model', async (key) => {
   try {
-    await loadModel(key);
+    const loaded = await loadModel(key);
+    if (!loaded) return;
+    applyPersona(key);
+    // Do not carry one character's conversation into another's voice.
+    state.chatHistory = [];
   } catch (err) {
     console.error('model switch failed:', err && err.message);
     say((L && L.modelLoadFail) || 'Failed to load the model', 5000);
@@ -759,6 +776,7 @@ window.pet.on('pet-model', async (key) => {
   try {
     const info = await window.pet.getInfo().catch(() => null);
     await loadModel((info && info.model) || 'lilith');
+    applyPersona(state.model);
     state.loaded = true;
     state.mode = 'idle';
     scheduleIdle();

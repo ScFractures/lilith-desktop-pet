@@ -83,6 +83,8 @@ npm start
 
 应用内置三个模型：原版莉莉丝（`LilithPet/assets/lilith.glb`）、魔王版莉莉丝（`LilithPet/assets/lilith_maou.glb`，源文件在 `Lilith_mao/`）和 DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
 
+每个角色都有独立的性格和 AI 人格：莉莉丝（原版/魔王）温柔、诗意、带点调皮；DeepSeek M 则冷静、简洁、偏理性，带一点克制的冷幽默。切换模型会同时切换 AI 系统提示词和所有本地台词，并清空当前对话上下文，避免两种声音混在一起。
+
 如需用 Blender 4.x 或更高版本从 FBX 源文件重新生成 GLB：
 
 ```bash

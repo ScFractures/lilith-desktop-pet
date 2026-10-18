@@ -743,6 +743,76 @@ function runInteractionTest() {
     await wait(600);
     await shot('m_model_deepseek');
     console.log('[test] deepseek labels:', await js(`window.pet.i18nGet().then(p => JSON.stringify({ menu: p.dict.menuModel, label: p.dict.modelDeepseek }))`));
+    console.log('[test] deepseek persona:', await js(`window.pet.i18nGet().then(p => {
+      const d = p.dict.personas.deepseek_m;
+      return JSON.stringify({
+        persona: window.__pet.persona,
+        promptLen: d.systemPrompt.length,
+        identity: d.systemPrompt.includes('DeepSeek M'),
+        lilithBoundary: d.systemPrompt.includes('你不是莉莉丝'),
+        differsFromLilith: d.systemPrompt !== p.dict.systemPrompt,
+        categories: Object.keys(d.phrases).length,
+        greet: d.phrases.greet.length,
+        placeholder: document.getElementById('chatinput').placeholder,
+        thinking: d.thinking,
+      });
+    })`));
+    setLanguage('en');
+    await wait(400);
+    console.log('[test] deepseek lang(en):', await js(`JSON.stringify({ persona: window.__pet.persona, placeholder: document.getElementById('chatinput').placeholder })`));
+    setLanguage('zh');
+    await wait(400);
+    console.log('[test] deepseek lang(zh):', await js(`JSON.stringify({ persona: window.__pet.persona, placeholder: document.getElementById('chatinput').placeholder })`));
+
+    // --- DeepSeek persona reaches the real chat request, including its thinking line ---
+    const httpDs = require('http');
+    let dsSystem = '';
+    const mockDs = httpDs.createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => { body += c; });
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          const sys = (parsed.messages || []).find((m) => m.role === 'system');
+          dsSystem = sys ? sys.content : '';
+        } catch {}
+        res.setHeader('Content-Type', 'application/json');
+        setTimeout(() => res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: '收到。先给结论：测试通过。' } }] })), 600);
+      });
+    });
+    await new Promise((r) => mockDs.listen(0, '127.0.0.1', r));
+    let dsAiCfgBackup = null;
+    try { dsAiCfgBackup = fs.readFileSync(aiConfigPath(), 'utf8'); } catch {}
+    fs.writeFileSync(aiConfigPath(), JSON.stringify({ baseUrl: `http://127.0.0.1:${mockDs.address().port}/v1`, apiKey: 'test-key', model: 'test-model' }));
+    ev({ type: 'mouseMove', x: 170, y: 400 });
+    await wait(150);
+    ev({ type: 'mouseDown', x: 170, y: 400, button: 'left', clickCount: 1 });
+    ev({ type: 'mouseUp', x: 170, y: 400, button: 'left', clickCount: 1 });
+    await wait(650);
+    await js(`(() => { const i = document.getElementById('chatinput'); i.value = '你好'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 'sent'; })()`);
+    await wait(250);
+    const dsThinking = await js(`document.getElementById('bubble').textContent`);
+    let dsReply = '';
+    for (let i = 0; i < 24; i++) {
+      dsReply = await js(`document.getElementById('bubble').textContent`);
+      if (dsReply.includes('测试通过')) break;
+      await wait(250);
+    }
+    console.log('[test] deepseek chat:', JSON.stringify({
+      thinking: dsThinking,
+      promptSent: !!dsSystem,
+      identity: dsSystem.includes('DeepSeek M'),
+      lilithBoundary: dsSystem.includes('你不是莉莉丝'),
+      noLilithCake: !dsSystem.includes('草莓蛋糕'),
+      promptLen: dsSystem.length,
+      reply: dsReply,
+    }));
+    await js(`(() => { const i = document.getElementById('chatinput'); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 'closed'; })()`);
+    await wait(250);
+    if (dsAiCfgBackup != null) fs.writeFileSync(aiConfigPath(), dsAiCfgBackup);
+    else { try { fs.unlinkSync(aiConfigPath()); } catch {} }
+    mockDs.close();
+
     ev({ type: 'mouseMove', x: 170, y: 400 });
     await wait(300);
     console.log('[test] deepseek hover:', await js(`JSON.stringify({ ign: window.__pet.ignoreState, hover: window.__pet.hover })`));
@@ -752,9 +822,10 @@ function runInteractionTest() {
     try { persistedDeepseek = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'pet-state.json'), 'utf8')).model; } catch {}
     console.log('[test] deepseek switch:', JSON.stringify({ switched: modelDeepseek, model: await js(`window.__pet.model`), persisted: persistedDeepseek }));
 
+    await js(`window.__pet.chatHistory.push({ role: 'user', content: 'deepseek-context' }); 'ok'`);
     selectModel('lilith');
     for (let i = 0; i < 40 && (await js(`window.__pet.model`)) !== 'lilith'; i++) await wait(200);
-    console.log('[test] model restored:', await js(`window.__pet.model`));
+    console.log('[test] model restored:', await js(`JSON.stringify({ model: window.__pet.model, persona: window.__pet.persona, placeholder: document.getElementById('chatinput').placeholder, history: window.__pet.chatHistory.length })`));
 
     ev({ type: 'mouseMove', x: 170, y: 400 });
     await wait(300);

@@ -83,6 +83,8 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 
 Three models are included: the original Lilith (`LilithPet/assets/lilith.glb`), Lilith Maou (`LilithPet/assets/lilith_maou.glb`, source in `Lilith_mao/`) and DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
 
+Each character has her own voice and AI persona. Lilith (Classic and Maou) is gentle, poetic and playful; DeepSeek M is a calm, concise, analytical assistant with a dry sense of humor. Switching models swaps the AI system prompt and all local lines, and clears the current chat history so the two voices never blend.
+
 To regenerate a GLB from its FBX source with Blender 4.x or newer:
 
 ```bash
