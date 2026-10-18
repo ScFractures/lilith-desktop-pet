@@ -749,7 +749,8 @@ function runInteractionTest() {
         persona: window.__pet.persona,
         promptLen: d.systemPrompt.length,
         identity: d.systemPrompt.includes('DeepSeek M'),
-        lilithBoundary: d.systemPrompt.includes('你不是莉莉丝'),
+        noLilithMention: !/莉莉丝|银葱|草莓蛋糕/.test(JSON.stringify({ p: d.systemPrompt, ph: d.phrases, c: d.chatPlaceholder, t: d.thinking })),
+        noDeepseekInLilith: !/DeepSeek/i.test(p.dict.systemPrompt + JSON.stringify(p.dict.phrases)),
         differsFromLilith: d.systemPrompt !== p.dict.systemPrompt,
         categories: Object.keys(d.phrases).length,
         greet: d.phrases.greet.length,
@@ -760,6 +761,13 @@ function runInteractionTest() {
     setLanguage('en');
     await wait(400);
     console.log('[test] deepseek lang(en):', await js(`JSON.stringify({ persona: window.__pet.persona, placeholder: document.getElementById('chatinput').placeholder })`));
+    console.log('[test] persona isolation(en):', await js(`window.pet.i18nGet().then(p => {
+      const d = p.dict.personas.deepseek_m;
+      return JSON.stringify({
+        noLilithMention: !/Lilith|strawberry cake|Scallion/i.test(d.systemPrompt + JSON.stringify(d.phrases)),
+        noDeepseekInLilith: !/DeepSeek/i.test(p.dict.systemPrompt + JSON.stringify(p.dict.phrases)),
+      });
+    })`));
     setLanguage('zh');
     await wait(400);
     console.log('[test] deepseek lang(zh):', await js(`JSON.stringify({ persona: window.__pet.persona, placeholder: document.getElementById('chatinput').placeholder })`));
@@ -802,8 +810,7 @@ function runInteractionTest() {
       thinking: dsThinking,
       promptSent: !!dsSystem,
       identity: dsSystem.includes('DeepSeek M'),
-      lilithBoundary: dsSystem.includes('你不是莉莉丝'),
-      noLilithCake: !dsSystem.includes('草莓蛋糕'),
+      noLilithMention: !/莉莉丝|银葱|草莓蛋糕/.test(dsSystem),
       promptLen: dsSystem.length,
       reply: dsReply,
     }));
@@ -822,10 +829,23 @@ function runInteractionTest() {
     try { persistedDeepseek = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'pet-state.json'), 'utf8')).model; } catch {}
     console.log('[test] deepseek switch:', JSON.stringify({ switched: modelDeepseek, model: await js(`window.__pet.model`), persisted: persistedDeepseek }));
 
-    await js(`window.__pet.chatHistory.push({ role: 'user', content: 'deepseek-context' }); 'ok'`);
+    await js(`(() => {
+      window.__pet.chatHistory.push({ role: 'user', content: 'deepseek-context' });
+      const b = document.getElementById('bubble');
+      b.classList.add('show');
+      document.getElementById('bubbletext').textContent = 'stale-deepseek-line';
+      return 'ok';
+    })()`);
     selectModel('lilith');
     for (let i = 0; i < 40 && (await js(`window.__pet.model`)) !== 'lilith'; i++) await wait(200);
-    console.log('[test] model restored:', await js(`JSON.stringify({ model: window.__pet.model, persona: window.__pet.persona, placeholder: document.getElementById('chatinput').placeholder, history: window.__pet.chatHistory.length })`));
+    console.log('[test] model restored:', await js(`JSON.stringify({
+      model: window.__pet.model,
+      persona: window.__pet.persona,
+      placeholder: document.getElementById('chatinput').placeholder,
+      history: window.__pet.chatHistory.length,
+      bubbleShown: document.getElementById('bubble').classList.contains('show'),
+      bubbleText: document.getElementById('bubbletext').textContent,
+    })`));
 
     ev({ type: 'mouseMove', x: 170, y: 400 });
     await wait(300);
@@ -920,7 +940,7 @@ function runInteractionTest() {
         try {
           const parsed = JSON.parse(body);
           const sys = (parsed.messages || []).find((m) => m.role === 'system');
-          console.log('[test] system prompt:', sys ? `${sys.content.length} chars has莉莉丝:${sys.content.includes('莉莉丝')} hasLilith:${sys.content.includes('Lilith')} has银葱:${sys.content.includes('银葱之森')} hasScallion:${/scallion/i.test(sys.content)}` : 'MISSING');
+          console.log('[test] system prompt:', sys ? `${sys.content.length} chars has莉莉丝:${sys.content.includes('莉莉丝')} hasLilith:${sys.content.includes('Lilith')} has银葱:${sys.content.includes('银葱之森')} hasScallion:${/scallion/i.test(sys.content)} hasDeepSeek:${/deepseek/i.test(sys.content)}` : 'MISSING');
           console.log('[test] max_tokens sent:', parsed.max_tokens);
         } catch {}
         res.setHeader('Content-Type', 'application/json');

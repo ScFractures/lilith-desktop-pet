@@ -107,6 +107,7 @@ let L = null;
 let phrases = {};
 let AI_SYSTEM_PROMPT = '';
 let thinkingText = '';
+let chatEpoch = 0;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // lilith_maou is the same character as lilith; only deepseek_m overrides the persona.
 const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_maou: 'lilith', deepseek_m: 'deepseek_m' };
@@ -284,6 +285,7 @@ async function sendChat() {
   say(thinkingText || L.thinking, 60000);
   state.chatHistory.push({ role: 'user', content: text });
   if (state.chatHistory.length > 14) state.chatHistory.splice(0, state.chatHistory.length - 14);
+  const epoch = chatEpoch;
   let res = null;
   try {
     res = await window.pet.aiChat([
@@ -295,6 +297,8 @@ async function sendChat() {
   } finally {
     state.chatBusy = false;
   }
+  // A model switch invalidates anything produced for the previous persona.
+  if (epoch !== chatEpoch) return;
   if (res && res.reply) {
     state.chatHistory.push({ role: 'assistant', content: res.reply });
     const out = res.reply.replace(/\s+/g, ' ').trim();
@@ -759,8 +763,14 @@ window.pet.on('pet-model', async (key) => {
     const loaded = await loadModel(key);
     if (!loaded) return;
     applyPersona(key);
-    // Do not carry one character's conversation into another's voice.
+    // Do not carry one character's conversation, pending reply or speech into another's voice.
+    chatEpoch++;
+    state.chatBusy = false;
     state.chatHistory = [];
+    if (state.chatOpen) closeChat();
+    clearTimeout(bubbleTimer);
+    bubbleEl.classList.remove('show', 'scroll');
+    bubbleTextEl.textContent = '';
   } catch (err) {
     console.error('model switch failed:', err && err.message);
     say((L && L.modelLoadFail) || 'Failed to load the model', 5000);
