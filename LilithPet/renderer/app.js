@@ -15,8 +15,6 @@ const WALK_MAX = 165;
 const canvas = document.getElementById('scene');
 const bubbleEl = document.getElementById('bubble');
 const bubbleTextEl = document.getElementById('bubbletext');
-const chatboxEl = document.getElementById('chatbox');
-const chatInput = document.getElementById('chatinput');
 const zzzEl = document.getElementById('zzz');
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -91,9 +89,7 @@ const state = {
   hover: false,
   cursor: { x: 0, y: 0, inside: false },
   ignoreState: true,
-  chatOpen: false,
-  chatBusy: false,
-  chatHistory: [],
+  balanceBusy: false,
   sleepWin: false,
   prevSleepWin: false,
   nowOverride: null,
@@ -105,9 +101,6 @@ window.__pet = state;
 
 let L = null;
 let phrases = {};
-let AI_SYSTEM_PROMPT = '';
-let thinkingText = '';
-let chatEpoch = 0;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // lilith_maou is the same character as lilith; only deepseek_m overrides the persona.
 const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_maou: 'lilith', deepseek_m: 'deepseek_m' };
@@ -117,9 +110,6 @@ function applyPersona(model = state.model) {
   const key = PERSONA_BY_MODEL[model] || 'lilith';
   const persona = (L.personas && L.personas[key]) || null;
   phrases = (persona && persona.phrases) || L.phrases;
-  AI_SYSTEM_PROMPT = (persona && persona.systemPrompt) || L.systemPrompt;
-  thinkingText = (persona && persona.thinking) || L.thinking;
-  chatInput.placeholder = (persona && persona.chatPlaceholder) || L.chatPlaceholder;
   state.persona = key;
 }
 
@@ -248,86 +238,69 @@ function say(text, duration = 2300) {
   bubbleTimer = setTimeout(() => bubbleEl.classList.remove('show'), duration);
 }
 
-function openChat() {
-  if (state.chatOpen) {
-    chatInput.focus();
-    return;
-  }
-  wakeUp();
-  if (state.mode === 'walking') window.pet.walkStop();
-  state.chatOpen = true;
-  chatboxEl.classList.add('show');
-  window.pet.setFocusable(true);
-  setTimeout(() => { if (state.chatOpen) chatInput.focus(); }, 90);
-  window.pet.aiGetConfig().then((cfg) => {
-    if (!cfg || !cfg.apiKey || !cfg.baseUrl || !cfg.model) {
-      say(L.noConfigHint, 3800);
-    }
-  }).catch(() => {});
+function fillTemplate(template, vars) {
+  return String(template || '').replace(/\{(\w+)\}/g, (_, key) => (vars[key] == null ? '' : String(vars[key])));
 }
 
-function closeChat() {
-  if (!state.chatOpen) return;
-  state.chatOpen = false;
-  chatboxEl.classList.remove('show');
-  window.pet.setFocusable(false);
-}
-
-async function sendChat() {
-  if (state.chatBusy) return;
-  const text = chatInput.value.trim();
-  if (!text) {
-    closeChat();
-    return;
-  }
-  chatInput.value = '';
-  state.chatBusy = true;
-  say(thinkingText || L.thinking, 60000);
-  state.chatHistory.push({ role: 'user', content: text });
-  if (state.chatHistory.length > 14) state.chatHistory.splice(0, state.chatHistory.length - 14);
-  const epoch = chatEpoch;
-  let res = null;
+function expiryLabel(ts) {
+  if (!Number.isFinite(ts)) return '';
   try {
-    res = await window.pet.aiChat([
-      { role: 'system', content: AI_SYSTEM_PROMPT },
-      ...state.chatHistory,
-    ]);
-  } catch (e) {
-    res = { error: String((e && e.message) || e) };
-  } finally {
-    state.chatBusy = false;
-  }
-  // A model switch invalidates anything produced for the previous persona.
-  if (epoch !== chatEpoch) return;
-  if (res && res.reply) {
-    state.chatHistory.push({ role: 'assistant', content: res.reply });
-    const out = res.reply.replace(/\s+/g, ' ').trim();
-    say(out, Math.min(30000, 2200 + out.length * 140));
-  } else if (res && res.error === 'no-config') {
-    say(L.noConfigHint, 4200);
-  } else {
-    say(L.connectFailPrefix + String((res && res.error) || L.unknownError).slice(0, 60), 4200);
+    return new Intl.DateTimeFormat(state.lang === 'zh' ? 'zh-CN' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(ts));
+  } catch {
+    return '';
   }
 }
 
-chatInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    sendChat();
-  } else if (e.key === 'Escape') {
-    e.preventDefault();
-    closeChat();
+function qoderBalanceText(r) {
+  const d = L || {};
+  const usedPct = Math.max(0, Math.min(100, Math.round(Number(r.usedPercentage) || 0)));
+  const unit = r.unit || 'credits';
+  let text;
+  if (Number.isFinite(r.total) && r.total > 0) {
+    const low = r.remaining / r.total <= 0.1;
+    text = fillTemplate(low ? d.qoderBalanceLow : d.qoderBalanceResult, {
+      remaining: r.remaining,
+      total: r.total,
+      unit,
+      usedPct,
+    });
+  } else {
+    text = fillTemplate(d.qoderBalanceResultNoTotal, { remaining: r.remaining, unit, usedPct });
   }
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && state.chatOpen) closeChat();
-});
-window.addEventListener('blur', () => {
-  if (state.chatOpen) closeChat();
-});
-window.addEventListener('focus', () => {
-  if (state.chatOpen) chatInput.focus();
-});
+  const date = expiryLabel(r.expiresAt);
+  if (date) text += fillTemplate(d.qoderBalanceExpires, { date });
+  return text + (d.qoderBalanceEnd || '');
+}
+
+async function speakQoderBalance() {
+  if (state.balanceBusy) return;
+  state.balanceBusy = true;
+  const d = L || {};
+  say(d.qoderBalanceChecking || '…', 20000);
+  try {
+    const r = await window.pet.qoderBalance();
+    if (!r || !r.ok) {
+      if (r && r.stale && typeof r.remaining === 'number') {
+        say((d.qoderBalanceStalePrefix || '') + qoderBalanceText(r), 8000);
+      } else {
+        say(fillTemplate(d.qoderBalanceError, { error: (r && r.error) || d.unknownError || '' }), 7000);
+      }
+      return;
+    }
+    if (r.isQuotaExceeded || r.remaining <= 0) {
+      say((d.qoderBalanceExhausted || '') + (d.qoderBalanceEnd || ''), 8000);
+    } else {
+      say(qoderBalanceText(r), 8000);
+    }
+  } catch (e) {
+    say(fillTemplate(d.qoderBalanceError, { error: String((e && e.message) || e) }), 7000);
+  } finally {
+    state.balanceBusy = false;
+  }
+}
 
 function anchorPoint() {
   const w = window.innerWidth;
@@ -339,16 +312,15 @@ function anchorPoint() {
 
 function updateBubblePos() {
   const { px: apx, py: apy, w, h } = anchorPoint();
-  const chh = state.chatOpen ? chatboxEl.offsetHeight : 0;
   const shown = bubbleEl.classList.contains('show');
   if (shown) {
     // Cap long replies: scroll inside the bubble only when the text really doesn't fit; short bubbles never show a scrollbar
-    bubbleTextEl.style.maxHeight = `${Math.max(80, h - chh - 46)}px`;
+    bubbleTextEl.style.maxHeight = `${Math.max(80, h - 46)}px`;
     bubbleEl.classList.toggle('scroll', bubbleTextEl.scrollHeight > bubbleTextEl.clientHeight + 1);
   }
   const bh = shown ? bubbleEl.offsetHeight : 0;
-  // When she jumps high the anchor goes above the window top; clamp so the bubble and input stay inside
-  const minPy = bh + chh + (chh ? 26 : 14) + 4;
+  // When she jumps high the anchor goes above the window top; clamp so the bubble stays inside
+  const minPy = bh + 18;
   const py = Math.max(apy, minPy);
   if (zzzEl.classList.contains('show')) {
     // zzZ stacks above the bubble so the speech bubble can't cover it
@@ -357,17 +329,11 @@ function updateBubblePos() {
     zzzEl.style.left = `${zx}px`;
     zzzEl.style.bottom = `${h - py + 10 + (bh ? bh + 8 : 4)}px`;
   }
-  if (state.chatOpen) {
-    const cw = chatboxEl.offsetWidth;
-    const cx = Math.min(Math.max(apx, cw / 2 + 6), w - cw / 2 - 6);
-    chatboxEl.style.left = `${cx}px`;
-    chatboxEl.style.bottom = `${h - py + 10}px`;
-  }
   if (bh) {
     const bw = bubbleEl.offsetWidth;
     const bx = Math.min(Math.max(apx, bw / 2 + 6), w - bw / 2 - 6);
     bubbleEl.style.left = `${bx}px`;
-    bubbleEl.style.bottom = `${h - py + 10 + chh + (chh ? 6 : 0)}px`;
+    bubbleEl.style.bottom = `${h - py + 14}px`;
   }
 }
 
@@ -468,7 +434,6 @@ function inSleepWindow() {
 
 function enterSleep() {
   if (state.mode === 'sleeping' || state.dragging || state.mode === 'falling') return;
-  if (state.chatOpen) closeChat();
   if (state.mode === 'walking') window.pet.walkStop();
   state.spinLeft = 0;
   state.spinExtra = 0;
@@ -494,7 +459,7 @@ function sleepTick() {
   const prev = state.prevSleepWin;
   state.sleepWin = w;
   state.prevSleepWin = w;
-  if (w && !prev && state.mode === 'idle' && !state.dragging && !state.pendingDrag && !state.chatOpen) {
+  if (w && !prev && state.mode === 'idle' && !state.dragging && !state.pendingDrag) {
     enterSleep();
   } else if (!w && prev && state.mode === 'sleeping') {
     wakeUp({ morning: true, say: true });
@@ -583,7 +548,7 @@ function update(dt, t) {
   blob.material.opacity = Math.max(0.08, 0.9 / (1 + lift * 2.6));
 
   // idle scheduler
-  if (state.mode === 'idle' && !state.dragging && !state.pendingDrag && !state.chatOpen && state.spinLeft <= 0) {
+  if (state.mode === 'idle' && !state.dragging && !state.pendingDrag && state.spinLeft <= 0) {
     state.idleTimer -= dt;
     if (state.idleTimer <= 0) {
       scheduleIdle();
@@ -594,15 +559,11 @@ function update(dt, t) {
   // hover / click-through
   const r = petScreenRect();
   const br = bubbleEl.getBoundingClientRect();
-  let overPet =
+  const overPet =
     inRect(state.cursor.x, state.cursor.y, r) ||
     (bubbleEl.classList.contains('show') && inRect(state.cursor.x, state.cursor.y, { l: br.left, t: br.top, r: br.right, b: br.bottom }));
-  if (state.chatOpen) {
-    const cr = chatboxEl.getBoundingClientRect();
-    overPet = overPet || inRect(state.cursor.x, state.cursor.y, { l: cr.left, t: cr.top, r: cr.right, b: cr.bottom });
-  }
   state.hover = overPet;
-  setInteractive(overPet || state.dragging || state.pendingDrag !== null || state.chatOpen);
+  setInteractive(overPet || state.dragging || state.pendingDrag !== null);
   canvas.style.cursor = state.dragging ? 'grabbing' : overPet ? 'grab' : 'default';
 
   zzzEl.classList.toggle('show', sleeping && state.hopY <= 0);
@@ -647,7 +608,6 @@ canvas.addEventListener('mousemove', (e) => {
       wakeUp();
       state.dragging = true;
       state.mode = 'drag';
-      closeChat();
       window.pet.dragStart({ offsetX: e.clientX, offsetY: e.clientY });
       if (Math.random() < 0.5) say(pick(phrases.drag), 1400);
     }
@@ -689,7 +649,6 @@ window.addEventListener('mouseup', (e) => {
       wakeUp({ say: true });
       hop(0.75 + Math.random() * 0.3);
       state.targetYaw = 0;
-      openChat();
     }, 230);
   }
 });
@@ -736,8 +695,8 @@ window.pet.on('pet-event', (name, data) => {
 
 window.pet.on('pet-cmd', (cmd) => {
   if (!state.loaded) return;
-  if (cmd === 'chat') openChat();
-  else if (cmd === 'pat') doPat();
+  if (cmd === 'pat') doPat();
+  else if (cmd === 'qoder-balance') speakQoderBalance();
   else if (cmd === 'walk') { wakeUp(); if (state.mode === 'idle') doWalk(); }
   else if (cmd === 'spin') { wakeUp(); doSpin(); }
   else if (cmd === 'jump') { wakeUp(); doJump(); }
@@ -763,11 +722,6 @@ window.pet.on('pet-model', async (key) => {
     const loaded = await loadModel(key);
     if (!loaded) return;
     applyPersona(key);
-    // Do not carry one character's conversation, pending reply or speech into another's voice.
-    chatEpoch++;
-    state.chatBusy = false;
-    state.chatHistory = [];
-    if (state.chatOpen) closeChat();
     clearTimeout(bubbleTimer);
     bubbleEl.classList.remove('show', 'scroll');
     bubbleTextEl.textContent = '';

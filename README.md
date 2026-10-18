@@ -1,6 +1,6 @@
 # Lilith Desktop Pet
 
-A desktop pet for macOS and Windows (experimental), built with Electron and Three.js. Lilith floats on your desktop, wanders around on her own, idles, sleeps at night — and chats with you through any OpenAI-compatible API.
+A desktop pet for macOS and Windows (experimental), built with Electron and Three.js. Lilith floats on your desktop, wanders around on her own, idles, sleeps at night — and chats with you through the local Qoder CLI or any OpenAI-compatible / Anthropic endpoint, with streaming replies, reasoning, and tool calls.
 
 [中文](README.zh-CN.md)
 
@@ -74,16 +74,32 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 ## Usage
 
 - Drag the pet to move her; left alone, she walks around, idles, and occasionally talks.
-- Right-click the pet for the menu: size presets, model, actions (chat, pat, walk, spin, jump, greet, sleep) and AI Chat Settings.
-- Open AI Chat Settings, fill in the Base URL, API Key and model name of any OpenAI-compatible endpoint, use the test button, then save.
-- The chat input appears under the pet; press Enter to send, Escape to close. The AI config is stored locally only (under the OS application data directory), and messages go only to the endpoint you configured.
-- Everything is available in Chinese and English: switch with the Language submenu in the right-click (or tray) menu. The default follows your system language.
+- Right-click the pet for the menu: **Qoder chat…**, Qoder balance, size presets, 3D model, actions (pat, walk, spin, jump, greet, sleep), language, hide and quit.
+- **Qoder chat…** opens the conversation window. Pick a model at the top, choose a permission mode and workspace, then send with Enter. Replies stream in live, the model's reasoning appears in a collapsible **Reasoning** panel, and **Stop** interrupts a reply. The dot next to **New chat** shows whether a Qoder session is connected.
+- Tool calls are grouped into one collapsed **Tool calls** row so they never cover the reasoning. Expand the row to list each call, then expand a call to see its input and result. The row shows the active tool while running and the failure count if a call fails.
+- **Qoder models** run the local Qoder CLI in the selected workspace, so they can read files, run commands and edit code. Permission modes control what is allowed: **YOLO** runs tools without confirmation — make sure the workspace is correct before using it. If the Qoder CLI is not installed you can still use custom models.
+- **Add model** opens the model settings page. Custom models can use any OpenAI-compatible endpoint (Chat Completions or the Responses API) or the Anthropic Messages API. Fetch the model list and each model's supported reasoning depths automatically, or type the model ID manually; test the connection, then save. Custom models appear in the chat window's model menu and call the endpoint directly — Qoder tools, permission modes and workspaces do not apply to them.
+- **New chat** clears the current conversation from the window and starts a fresh session.
+- Everything is available in Chinese and English: switch with the **Language** submenu in the right-click (or tray) menu. The default follows your system language. The pet, chat window and model settings page all update immediately.
+- **Qoder balance** in the right-click menu asks Lilith to read the local Qoder CLI quota (Qoder login required) and say how many credits remain.
+
+### Where data is stored
+
+Settings, chat history and API keys stay on your computer in the OS application-data directory (`~/Library/Application Support/Lilith Pet/` on macOS):
+
+- `pet-state.json` — pet position, size, selected 3D model, language and window bounds
+- `custom-models.json` — custom endpoints and their API keys (stored as plain text locally, never uploaded)
+- `qoder-chat.json` — conversation history
+- `qoder-models.json` — cached Qoder model list
+- `qoder-balance.json` — cached Qoder quota
+
+Messages go only to the provider you selected: the Qoder CLI for Qoder models, or the Base URL of the custom model you picked.
 
 ## Models
 
-Three models are included: the original Lilith (`LilithPet/assets/lilith.glb`), Lilith Maou (`LilithPet/assets/lilith_maou.glb`, source in `Lilith_mao/`) and DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
+Three 3D models are included: the original Lilith (`LilithPet/assets/lilith.glb`), Lilith Maou (`LilithPet/assets/lilith_maou.glb`, source in `Lilith_mao/`) and DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
 
-Each model has its own standalone voice and AI persona: Lilith (Classic and Maou) is gentle, poetic and playful; DeepSeek M is a calm, concise, analytical assistant with a dry sense of humor. Switching models swaps the AI system prompt and all local lines, and clears the current chat history.
+Each model has its own local voice and persona: Lilith (Classic and Maou) is gentle, poetic and playful; DeepSeek M is a calm, concise, analytical assistant with a dry sense of humor. Switching models swaps her local lines and persona. The model used by the Qoder chat window is selected independently inside that window.
 
 To regenerate a GLB from its FBX source with Blender 4.x or newer:
 
@@ -112,6 +128,8 @@ The script joins the meshes, decimates to ~260k triangles, downscales the 8K atl
   then delete `node_modules` and run `npm install` again.
 - `Error: Electron failed to install correctly` — same cause as above: configure the mirror, delete `node_modules`, reinstall.
 - `'npm' is not recognized` (Windows) — Node.js is not installed, or the terminal was not reopened after installing it. Install Node.js 18+, open a new terminal, and check `node -v`.
+- **Qoder CLI was not found / Qoder runs fail** — install and sign in to the Qoder CLI, and make sure it is at `~/.qoder-cn/entry/qoder-cn`, or point `QODERCN_CLI` at the executable. Custom models work without it.
+- **A custom model cannot connect** — check the Base URL, API key and model ID on the model settings page and use **Test connection**. Some providers require a `/v1` suffix; Anthropic keys are sent with `x-api-key`.
 - The app crashes right after launch on Windows (GPU-related errors) — the launcher already disables DirectComposition to avoid this. If it still crashes, append `--no-sandbox` to the launch command: edit the last line of `Lilith 桌宠.cmd`, or run `npm start -- --no-sandbox`.
 
 ## Notes

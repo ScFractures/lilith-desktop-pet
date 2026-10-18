@@ -85,40 +85,6 @@
     transform: translateX(-50%) rotate(45deg);
     border-bottom-right-radius: 2px;
   }
-  #chatbox {
-    position: absolute;
-    width: 240px;
-    opacity: 0;
-    transform: translate(-50%, 6px);
-    transition: opacity 0.16s ease, transform 0.16s ease;
-    pointer-events: none;
-    z-index: 11;
-  }
-  #chatbox.show {
-    opacity: 1;
-    transform: translate(-50%, 0);
-    pointer-events: auto;
-  }
-  #chatinput {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 8px 13px;
-    border-radius: 17px;
-    border: 1px solid rgba(60, 50, 70, 0.12);
-    background: rgba(255, 255, 255, 0.97);
-    box-shadow: 0 2px 12px rgba(40, 30, 50, 0.25);
-    font-size: 13px;
-    font-family: inherit;
-    color: #3a3540;
-    outline: none;
-  }
-  #chatinput::placeholder {
-    color: #a8a1ae;
-  }
-  #chatinput:focus {
-    border-color: rgba(255, 93, 126, 0.55);
-    box-shadow: 0 2px 12px rgba(40, 30, 50, 0.25), 0 0 0 2px rgba(255, 93, 126, 0.16);
-  }
   #zzz {
     position: absolute;
     opacity: 0;
@@ -178,7 +144,6 @@
 <body>
   <canvas id="scene"></canvas>
   <div id="bubble"><div id="bubbletext"></div></div>
-  <div id="chatbox"><input id="chatinput" type="text" maxlength="500" placeholder="和莉莉丝说点什么…" spellcheck="false" /></div>
   <div id="zzz"><span>z</span><span>z</span><span>Z</span></div>
   <script type="module" src="./app.js"></script>
 </body>

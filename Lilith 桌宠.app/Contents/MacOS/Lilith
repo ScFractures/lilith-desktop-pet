@@ -4,7 +4,7 @@ SELF="${0:A}"
 BUNDLE="${SELF:h:h:h}"
 PARENT="${BUNDLE:h}"
 PROJ="$PARENT/LilithPet"
-[ -d "$PROJ" ] || PROJ="/Users/fractures/Desktop/LilithPet"
+[ -d "$PROJ" ] || PROJ="$HOME/Desktop/Lilith-Desktop-Pet/LilithPet"
 ELECTRON="$PROJ/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
 if [ ! -x "$ELECTRON" ]; then
   osascript -e "display alert \"Lilith\" message \"未找到 LilithPet 项目或 Electron：$PROJ\" as critical" >/dev/null 2>&1
