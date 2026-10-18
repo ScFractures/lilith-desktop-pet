@@ -11,7 +11,8 @@ Lilith-Desktop-Pet/
 ├── LilithPet/            # Electron app source (run npm install first)
 ├── Lilith 桌宠.app       # macOS double-click launcher (must stay next to LilithPet/)
 ├── Lilith 桌宠.cmd       # Windows launcher (double-click; must stay next to LilithPet/)
-└── Lilith/               # 3D model assets (FBX + textures)
+├── Lilith/               # original 3D model source (FBX + textures)
+└── Lilith_mao/           # Maou (魔王) model source (FBX + textures; keeps the original folder name)
 ```
 
 ## Getting started
@@ -72,10 +73,24 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 ## Usage
 
 - Drag the pet to move her; left alone, she walks around, idles, and occasionally talks.
-- Right-click the pet for the menu: size presets, actions (chat, pat, walk, spin, jump, greet, sleep) and AI Chat Settings.
+- Right-click the pet for the menu: size presets, model, actions (chat, pat, walk, spin, jump, greet, sleep) and AI Chat Settings.
 - Open AI Chat Settings, fill in the Base URL, API Key and model name of any OpenAI-compatible endpoint, use the test button, then save.
 - The chat input appears under the pet; press Enter to send, Escape to close. The AI config is stored locally only (under the OS application data directory), and messages go only to the endpoint you configured.
 - Everything is available in Chinese and English: switch with the Language submenu in the right-click (or tray) menu. The default follows your system language.
+
+## Models
+
+Two models are included: the original Lilith (`LilithPet/assets/lilith.glb`) and Lilith Maou (`LilithPet/assets/lilith_maou.glb`, source in `Lilith_mao/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
+
+To regenerate a GLB from its FBX source with Blender 4.x or newer:
+
+```bash
+Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
+  Lilith_mao/Lilith_mao.fbx LilithPet/assets/lilith_maou.glb \
+  --texture Lilith_mao/Lilith_mao/Lilith_mao_basecolor.JPEG
+```
+
+The script joins the meshes, decimates to ~260k triangles, downscales the 8K atlas to 4K and exports a Y-up GLB. It never modifies the source files.
 
 ## Troubleshooting
 

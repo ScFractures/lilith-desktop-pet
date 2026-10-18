@@ -12,6 +12,9 @@ if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-c
 
 // Window sizes include ~150-260px of transparent headroom above the pet so a jump never clips her head
 const WINDOW_SIZES = { small: [270, 458], medium: [340, 560], large: [430, 725] };
+// Model key -> i18n label key. The GLB files live in LilithPet/assets/.
+const MODELS = { lilith: 'modelLilith', lilith_maou: 'modelMaou' };
+const DEFAULT_MODEL = 'lilith';
 const FLOOR_INSET = 24;
 const GRAVITY = 2600;
 const WALK_TICK = 16;
@@ -19,7 +22,7 @@ const WALK_TICK = 16;
 let win = null;
 let tray = null;
 let cfgFile = null;
-const settings = { x: null, y: null, size: 'medium', lang: null };
+const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL };
 
 const T = () => STRINGS[settings.lang] || STRINGS.zh;
 
@@ -64,6 +67,7 @@ function loadCfg() {
     Object.assign(settings, JSON.parse(fs.readFileSync(cfgFile, 'utf8')));
   } catch {}
   if (!WINDOW_SIZES[settings.size]) settings.size = 'medium';
+  if (!MODELS[settings.model]) settings.model = DEFAULT_MODEL;
   settings.lang = normalizeLang(settings.lang) || langFromLocale(app.getLocale());
 }
 
@@ -540,6 +544,29 @@ function languageSubmenu(onPick) {
   };
 }
 
+function selectModel(key) {
+  if (!MODELS[key] || settings.model === key) return;
+  settings.model = key;
+  if (cfgFile) {
+    try { fs.writeFileSync(cfgFile, JSON.stringify(settings)); } catch {}
+  }
+  send('pet-model', key);
+  if (tray) refreshTrayMenu();
+}
+
+function modelSubmenu(onPick) {
+  const t = T();
+  return {
+    label: t.menuModel,
+    submenu: Object.entries(MODELS).map(([key, labelKey]) => ({
+      label: t[labelKey],
+      type: 'radio',
+      checked: settings.model === key,
+      click: () => { selectModel(key); if (onPick) onPick(); },
+    })),
+  };
+}
+
 function trayMenuTemplate() {
   const t = T();
   return [
@@ -556,6 +583,7 @@ function trayMenuTemplate() {
         click: () => { applySize(k); refreshTrayMenu(); },
       })),
     },
+    modelSubmenu(refreshTrayMenu),
     languageSubmenu(refreshTrayMenu),
     { label: t.trayReset, click: () => { toggleVisible(true); resetPosition(); } },
     { label: t.menuAiSettings, click: () => openAiSettings() },
@@ -616,7 +644,7 @@ ipcMain.on('walk-stop', () => { stopWalk(); persistPos(); send('pet-event', 'wal
 ipcMain.handle('get-info', () => {
   const b = win.getBounds();
   const wa = workArea(b);
-  return { bounds: b, workArea: wa, size: settings.size, floorInset: FLOOR_INSET };
+  return { bounds: b, workArea: wa, size: settings.size, floorInset: FLOOR_INSET, model: settings.model };
 });
 
 ipcMain.handle('read-asset', (_e, relPath) => {
@@ -650,6 +678,7 @@ ipcMain.on('context-menu', (_e, at) => {
         click: () => applySize(k),
       })),
     },
+    modelSubmenu(),
     languageSubmenu(),
     { label: t.menuHide, click: () => toggleVisible(false) },
     { type: 'separator' },
@@ -681,6 +710,31 @@ function runInteractionTest() {
     console.log('[test] state idle:', await js(`JSON.stringify({mode:window.__pet.mode, ign:window.__pet.ignoreState, hover:window.__pet.hover})`));
     await shot('a_idle');
     console.log('[test] greeting bubble:', await js(`JSON.stringify((() => { const b = document.getElementById('bubble'); const t = document.getElementById('bubbletext'); return { show: b.classList.contains('show'), text: t.textContent.slice(0, 12), scroll: b.classList.contains('scroll'), ch: t.clientHeight, sh: t.scrollHeight }; })())`));
+
+    // --- model switch: hot-swap without restart + persisted choice ---
+    selectModel('lilith');
+    for (let i = 0; i < 30 && (await js(`window.__pet.model`)) !== 'lilith'; i++) await wait(200);
+    selectModel('lilith_maou');
+    let modelMao = false;
+    for (let i = 0; i < 40; i++) {
+      const s = JSON.parse(await js(`JSON.stringify({ model: window.__pet.model, loaded: window.__pet.loaded })`));
+      if (s.model === 'lilith_maou' && s.loaded) { modelMao = true; break; }
+      await wait(200);
+    }
+    await wait(600);
+    await shot('m_model_maou');
+    console.log('[test] model labels:', await js(`window.pet.i18nGet().then(p => JSON.stringify({ menu: p.dict.menuModel, classic: p.dict.modelLilith, maou: p.dict.modelMaou }))`));
+    ev({ type: 'mouseMove', x: 170, y: 400 });
+    await wait(300);
+    console.log('[test] maou hover:', await js(`JSON.stringify({ ign: window.__pet.ignoreState, hover: window.__pet.hover })`));
+    ev({ type: 'mouseMove', x: 10, y: 10 });
+    await wait(200);
+    let persistedModel = null;
+    try { persistedModel = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'pet-state.json'), 'utf8')).model; } catch {}
+    console.log('[test] model switch:', JSON.stringify({ switched: modelMao, model: await js(`window.__pet.model`), persisted: persistedModel }));
+    selectModel('lilith');
+    for (let i = 0; i < 40 && (await js(`window.__pet.model`)) !== 'lilith'; i++) await wait(200);
+    console.log('[test] model restored:', await js(`window.__pet.model`));
 
     ev({ type: 'mouseMove', x: 170, y: 400 });
     await wait(300);

@@ -98,6 +98,7 @@ const state = {
   prevSleepWin: false,
   nowOverride: null,
   lang: 'zh',
+  model: null,
 };
 window.__pet = state;
 
@@ -116,13 +117,35 @@ function applyDict(payload) {
 }
 window.pet.on('i18n', (payload) => applyDict(payload));
 
-async function loadModel() {
+function disposeObject(root) {
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.geometry) o.geometry.dispose();
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (!m) continue;
+      for (const value of Object.values(m)) {
+        if (value && value.isTexture) value.dispose();
+      }
+      m.dispose();
+    }
+  });
+}
+
+let modelLoadId = 0;
+
+async function loadModel(key) {
+  const loadId = ++modelLoadId;
   const loader = new GLTFLoader();
-  const buf = await window.pet.readAsset('assets/lilith.glb');
+  const buf = await window.pet.readAsset(`assets/${key}.glb`);
   const gltf = await new Promise((resolve, reject) => {
     loader.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), '', resolve, reject);
   });
   const model = gltf.scene;
+  if (loadId !== modelLoadId) {
+    disposeObject(model);
+    return false;
+  }
   let meshCount = 0;
   model.traverse((o) => {
     if (o.isMesh) {
@@ -136,6 +159,13 @@ async function loadModel() {
     }
   });
   model.rotation.y = -Math.PI / 2;
+  while (holder.children.length) {
+    const old = holder.children[0];
+    holder.remove(old);
+    disposeObject(old);
+  }
+  holder.scale.setScalar(1);
+  holder.position.set(0, 0, 0);
   holder.add(model);
   let box = new THREE.Box3().setFromObject(holder);
   const size = box.getSize(new THREE.Vector3());
@@ -143,7 +173,9 @@ async function loadModel() {
   box = new THREE.Box3().setFromObject(holder);
   const c = box.getCenter(new THREE.Vector3());
   holder.position.set(-c.x, -box.min.y, -c.z);
-  console.log(`model loaded: meshes=${meshCount} size=${size.x.toFixed(3)},${size.y.toFixed(3)},${size.z.toFixed(3)}`);
+  state.model = key;
+  console.log(`model loaded: ${key} meshes=${meshCount} size=${size.x.toFixed(3)},${size.y.toFixed(3)},${size.z.toFixed(3)}`);
+  return true;
 }
 
 function layout() {
@@ -709,6 +741,15 @@ window.pet.on('pet-visibility', (visible) => {
   else stopLoop();
 });
 
+window.pet.on('pet-model', async (key) => {
+  try {
+    await loadModel(key);
+  } catch (err) {
+    console.error('model switch failed:', err && err.message);
+    say((L && L.modelLoadFail) || 'Failed to load the model', 5000);
+  }
+});
+
 (async () => {
   try {
     applyDict(await window.pet.i18nGet());
@@ -716,7 +757,8 @@ window.pet.on('pet-visibility', (visible) => {
     console.error('i18n load failed:', e && e.message);
   }
   try {
-    await loadModel();
+    const info = await window.pet.getInfo().catch(() => null);
+    await loadModel((info && info.model) || 'lilith');
     state.loaded = true;
     state.mode = 'idle';
     scheduleIdle();
