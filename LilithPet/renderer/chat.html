@@ -31,11 +31,24 @@
         </span>
         <select id="model"></select>
       </div>
+      <label class="control mode-control">
+        <span class="control-label" data-i18n="mode">模式</span>
+        <select id="mode"></select>
+      </label>
+      <button id="workspace" class="workspace" type="button" title="">
+        <span class="workspace-icon">⌂</span>
+        <span id="workspace-name">~</span>
+      </button>
     </section>
 
     <div id="model-warning" class="model-warning" hidden>
       <span class="warn-dot"></span>
       <span data-i18n="noModelWarning">还没有添加模型。点上面的「添加模型」填写接口信息。</span>
+    </div>
+
+    <div id="tools-warning" class="model-warning tools-warning" hidden>
+      <span class="warn-dot"></span>
+      <span id="tools-warning-text"></span>
     </div>
 
     <main id="messages" aria-live="polite">
@@ -71,6 +84,7 @@
       </div>
       <div class="composer-foot">
         <span data-i18n="enterHint">Enter 发送 · Shift+Enter 换行</span>
+        <span id="workspace-path" class="workspace-path"></span>
       </div>
     </footer>
   </div>

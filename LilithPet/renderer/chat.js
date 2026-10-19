@@ -7,12 +7,21 @@
       close: '关闭',
       model: '模型',
       manageModels: '添加模型',
+      mode: '模式',
       modelGroupOpenAI: 'OpenAI 兼容',
       modelGroupAnthropic: 'Anthropic',
       responsesSuffix: ' · Responses',
       reasoningSuffix: ' · 推理',
+      toolsSuffix: ' · 工具',
       noModelWarning: '还没有添加模型。点上面的「添加模型」填写接口信息。',
+      toolsWarning: '工具已启用：模型可以访问工作目录里的文件；权限由模式和目录控制。',
+      toolsWarningFull: '完全访问：终端命令会直接执行，请确认工作目录正确。',
       reasoning: '思考过程',
+      toolCalls: '工具调用',
+      toolInput: '输入',
+      toolResult: '结果',
+      toolRunning: '运行中',
+      toolFailed: '{n} 个失败',
       welcomeTitle: '和莉莉丝聊天',
       welcomeBody: '选一个模型，直接开始。回复会以流式出现，思考型模型还会显示思考过程。',
       hintModel: '模型可随时切换',
@@ -34,6 +43,8 @@
       errorPrefix: '错误：',
       timeoutError: '请求超时，请稍后重试。',
       abortedError: '请求已取消。',
+      errorToolRoundLimit: '工具调用轮次过多，已停止。',
+      errorToolCallLimit: '工具调用次数过多，已停止。',
       interrupted: '已中断。',
       emptyReply: '（没有返回文本）',
       busySend: '上一条还在进行，先等它结束或点停止。',
@@ -50,13 +61,22 @@
       minimize: 'Minimize',
       close: 'Close',
       model: 'Model',
+      mode: 'Mode',
       manageModels: 'Add model',
       modelGroupOpenAI: 'OpenAI-compatible',
       modelGroupAnthropic: 'Anthropic',
       responsesSuffix: ' · Responses',
       reasoningSuffix: ' · Reasoning',
+      toolsSuffix: ' · Tools',
       noModelWarning: 'No models yet. Use “Add model” above to connect an endpoint.',
+      toolsWarning: 'Tools are on: the model can access files in the workspace; the mode and folder set the limits.',
+      toolsWarningFull: 'Full access: terminal commands run immediately — make sure the workspace is correct.',
       reasoning: 'Reasoning',
+      toolCalls: 'Tool calls',
+      toolInput: 'Input',
+      toolResult: 'Result',
+      toolRunning: 'running',
+      toolFailed: '{n} failed',
       welcomeTitle: 'Chat with Lilith',
       welcomeBody: 'Pick a model and start. Replies stream in, and reasoning models also show their thinking.',
       hintModel: 'Switch models anytime',
@@ -78,6 +98,8 @@
       errorPrefix: 'Error: ',
       timeoutError: 'The request timed out. Try again.',
       abortedError: 'The request was canceled.',
+      errorToolRoundLimit: 'Too many tool rounds; the run was stopped.',
+      errorToolCallLimit: 'Too many tool calls; the run was stopped.',
       interrupted: 'Interrupted.',
       emptyReply: '(no text returned)',
       busySend: 'The previous turn is still running. Wait or press Stop.',
@@ -97,8 +119,14 @@
   const messagesEl = document.getElementById('messages');
   const welcomeEl = document.getElementById('welcome');
   const modelSel = document.getElementById('model');
+  const modeSel = document.getElementById('mode');
   const manageModelsBtn = document.getElementById('manage-models');
+  const workspaceBtn = document.getElementById('workspace');
+  const workspaceName = document.getElementById('workspace-name');
+  const workspacePath = document.getElementById('workspace-path');
   const modelWarning = document.getElementById('model-warning');
+  const toolsWarning = document.getElementById('tools-warning');
+  const toolsWarningText = document.getElementById('tools-warning-text');
   const newChatBtn = document.getElementById('newchat');
   const minimizeBtn = document.getElementById('minimize');
   const closeBtn = document.getElementById('closewin');
@@ -113,12 +141,18 @@
   let state = {
     model: '',
     modelEntries: [],
+    mode: 'read',
+    workspace: '',
+    modes: [],
+    tools: false,
     messages: [],
     busy: false,
     draft: null,
   };
   let draftNode = null;
   let draftTextEl = null;
+  let draftToolsEl = null;
+  let draftTools = [];
   let draftThinkEl = null;
   let draftReasonEl = null;
   let draftReasonTextEl = null;
@@ -147,6 +181,12 @@
     return state.modelEntries.length > 0;
   }
 
+  function basename(p) {
+    if (!p) return '~';
+    const parts = String(p).split(/[\\/]/).filter(Boolean);
+    return parts[parts.length - 1] || p;
+  }
+
   function setStaticTexts() {
     document.title = 'Lilith · Chat';
     document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -168,6 +208,7 @@
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
     setStaticTexts();
     renderModelOptions(state.modelEntries, state.model);
+    renderModeOptions(state.modes, state.mode);
     renderAll();
   }
 
@@ -198,7 +239,8 @@
       items.forEach((entry) => {
         const option = document.createElement('option');
         option.value = entry.value || '';
-        const suffix = entry.api === 'responses' ? t('responsesSuffix') : (entry.effort ? t('reasoningSuffix') : '');
+        let suffix = entry.api === 'responses' ? t('responsesSuffix') : (entry.effort ? t('reasoningSuffix') : '');
+        if (entry.tools) suffix += t('toolsSuffix');
         option.textContent = `${entry.label || entry.value || '—'}${suffix}`;
         option.title = entry.model || entry.label || '';
         option.selected = entry.value === current;
@@ -215,6 +257,28 @@
       modelSel.appendChild(option);
     }
     modelSel.disabled = state.busy || !list.length;
+  }
+
+  function renderModeOptions(modes, selected) {
+    const list = Array.isArray(modes) ? modes : [];
+    const current = selected || state.mode;
+    modeSel.textContent = '';
+    list.forEach((mode) => {
+      const option = document.createElement('option');
+      option.value = mode.key;
+      option.textContent = (mode.label && (mode.label[lang] || mode.label.zh)) || mode.key;
+      option.title = (mode.hint && (mode.hint[lang] || mode.hint.zh)) || '';
+      option.selected = mode.key === current;
+      modeSel.appendChild(option);
+    });
+    if (!list.length) {
+      const option = document.createElement('option');
+      option.value = current || '';
+      option.textContent = current || '—';
+      modeSel.appendChild(option);
+    }
+    const active = list.find((mode) => mode.key === current);
+    modeSel.title = active && active.hint ? (active.hint[lang] || active.hint.zh || '') : '';
   }
 
   function makeMeta(message) {
@@ -237,6 +301,96 @@
       meta.appendChild(span);
     });
     return meta;
+  }
+
+  function makeToolElement(tool) {
+    const details = document.createElement('details');
+    details.className = 'tool';
+    if (tool.state === 'running') details.classList.add('running');
+    else if (tool.isError) details.classList.add('error');
+    else details.classList.add('done');
+    details.dataset.toolId = tool.id;
+
+    const summary = document.createElement('summary');
+    const dot = document.createElement('span');
+    dot.className = 'tool-status';
+    const name = document.createElement('span');
+    name.className = 'tool-name';
+    name.textContent = tool.name || 'Tool';
+    const label = document.createElement('span');
+    label.className = 'tool-summary';
+    label.textContent = tool.summary || (tool.state === 'running' ? t('toolRunning') : '');
+    const chevron = document.createElement('span');
+    chevron.className = 'tool-chevron';
+    chevron.textContent = '›';
+    summary.append(dot, name, label, chevron);
+
+    const body = document.createElement('div');
+    body.className = 'tool-body';
+    if (tool.inputText) {
+      const inputLabel = document.createElement('div');
+      inputLabel.className = 'tool-label';
+      inputLabel.textContent = t('toolInput');
+      const inputPre = document.createElement('pre');
+      inputPre.textContent = tool.inputText;
+      body.append(inputLabel, inputPre);
+    }
+    if (tool.result) {
+      const resultLabel = document.createElement('div');
+      resultLabel.className = 'tool-label';
+      resultLabel.textContent = t('toolResult');
+      const resultPre = document.createElement('pre');
+      resultPre.textContent = tool.result;
+      body.append(resultLabel, resultPre);
+    }
+    details.append(summary, body);
+    return details;
+  }
+
+  function makeToolsGroup(tools, options) {
+    const list = Array.isArray(tools) ? tools : [];
+    const openIds = (options && options.openIds) || new Set();
+    const running = list.find((tool) => tool.state === 'running');
+    const failures = list.filter((tool) => tool.isError).length;
+
+    const details = document.createElement('details');
+    details.className = 'tool-calls';
+    if (running) details.classList.add('running');
+    else if (failures) details.classList.add('error');
+    else details.classList.add('done');
+    if (options && options.open) details.open = true;
+
+    const summary = document.createElement('summary');
+    const dot = document.createElement('span');
+    dot.className = 'tool-calls-status';
+    const name = document.createElement('span');
+    name.className = 'tool-calls-name';
+    name.textContent = t('toolCalls');
+    const count = document.createElement('span');
+    count.className = 'tool-calls-count';
+    count.textContent = String(list.length);
+    const meta = document.createElement('span');
+    meta.className = 'tool-calls-meta';
+    if (running) {
+      meta.textContent = running.summary || running.name || '';
+      meta.title = meta.textContent;
+    } else if (failures) {
+      meta.textContent = fill(t('toolFailed'), { n: failures });
+    }
+    const chevron = document.createElement('span');
+    chevron.className = 'tool-calls-chevron';
+    chevron.textContent = '›';
+    summary.append(dot, name, count, meta, chevron);
+
+    const body = document.createElement('div');
+    body.className = 'tool-list';
+    list.forEach((tool) => {
+      const el = makeToolElement(tool);
+      if (openIds.has(tool.id)) el.open = true;
+      body.appendChild(el);
+    });
+    details.append(summary, body);
+    return details;
   }
 
   function renderRichText(container, text, streaming) {
@@ -311,6 +465,8 @@
     const value = String(text || '');
     if (value === 'timeout' || value === '请求超时') return t('timeoutError');
     if (value === 'aborted' || value === '请求已取消') return t('abortedError');
+    if (value === 'tool-round-limit') return t('errorToolRoundLimit');
+    if (value === 'tool-call-limit') return t('errorToolCallLimit');
     return value;
   }
 
@@ -336,8 +492,12 @@
     const textEl = document.createElement('div');
     textEl.className = 'assistant-text';
     if (message.text) renderRichText(textEl, message.text, false);
-    else if (!message.error) textEl.textContent = t('emptyReply');
+    else if (!(message.tools && message.tools.length) && !message.error) textEl.textContent = t('emptyReply');
     body.appendChild(textEl);
+
+    if (message.tools && message.tools.length) {
+      body.appendChild(makeToolsGroup(message.tools));
+    }
 
     if (message.error && message.errorText) {
       const note = document.createElement('div');
@@ -376,19 +536,23 @@
 
     const textEl = document.createElement('div');
     textEl.className = 'assistant-text';
+    const toolsEl = document.createElement('div');
+    toolsEl.className = 'tools-slot';
     const thinkEl = document.createElement('div');
     thinkEl.className = 'thinking-line';
 
-    body.append(reasoningEl, textEl, thinkEl);
+    body.append(reasoningEl, textEl, toolsEl, thinkEl);
     row.append(avatar, body);
 
     draftNode = row;
     draftTextEl = textEl;
+    draftToolsEl = toolsEl;
     draftThinkEl = thinkEl;
     draftReasonEl = reasoningEl;
     draftReasonTextEl = reasoningText;
     updateDraftReasoning(draft);
     updateDraftText(draft);
+    updateDraftTools(draft.tools || []);
     updateDraftThinking(draft);
     return row;
   }
@@ -418,11 +582,29 @@
     }
   }
 
+  function updateDraftTools(tools) {
+    if (!draftToolsEl) return;
+    draftTools = tools || [];
+    if (!draftTools.length) {
+      draftToolsEl.textContent = '';
+      draftToolsEl.hidden = true;
+      return;
+    }
+    draftToolsEl.hidden = false;
+    const prevGroup = draftToolsEl.querySelector('details.tool-calls');
+    const groupOpen = !!prevGroup && prevGroup.open;
+    const openIds = new Set(
+      [...draftToolsEl.querySelectorAll('details.tool[open]')].map((el) => el.dataset.toolId)
+    );
+    draftToolsEl.textContent = '';
+    draftToolsEl.appendChild(makeToolsGroup(draftTools, { open: groupOpen, openIds }));
+  }
+
   function updateDraftThinking(draft) {
     if (!draftThinkEl) return;
     const thinking = !!(draft && draft.thinking);
     const hasReasoning = !!(draft && draft.reasoning);
-    const empty = !draft || !draft.text;
+    const empty = !draft || (!draft.text && !(draft.tools && draft.tools.length));
     draftThinkEl.hidden = hasReasoning || (!thinking && !empty);
     if (draftThinkEl.hidden) return;
     draftThinkEl.textContent = '';
@@ -439,6 +621,8 @@
     forceScroll = false;
     draftNode = null;
     draftTextEl = null;
+    draftToolsEl = null;
+    draftTools = [];
     draftThinkEl = null;
     draftReasonEl = null;
     draftReasonTextEl = null;
@@ -448,7 +632,7 @@
     const hasDraft = state.busy;
     welcomeEl.classList.toggle('hidden', state.messages.length > 0 || hasDraft);
     if (hasDraft) {
-      const draft = state.draft || { text: '', reasoning: '', thinking: false };
+      const draft = state.draft || { text: '', reasoning: '', thinking: false, tools: [] };
       messagesEl.appendChild(makeDraftElement(draft));
     }
     updateChrome();
@@ -458,7 +642,18 @@
   function updateChrome() {
     const busy = !!state.busy;
     const models = hasModel();
+    const tools = !!state.tools;
     modelSel.disabled = busy || !models;
+    modeSel.disabled = busy || !tools;
+    workspaceBtn.disabled = busy || !tools;
+    workspaceName.textContent = basename(state.workspace);
+    workspaceBtn.title = state.workspace || '';
+    workspacePath.textContent = state.workspace || '';
+    toolsWarning.hidden = !tools;
+    if (tools) {
+      toolsWarningText.textContent = state.mode === 'full' ? t('toolsWarningFull') : t('toolsWarning');
+      toolsWarning.classList.toggle('danger', state.mode === 'full');
+    }
     modelWarning.hidden = models;
     stopBtn.hidden = !busy;
     spinner.hidden = !busy;
@@ -477,14 +672,21 @@
   // ------------------------------------------------------------- state sync
   function applyState(next) {
     if (!next) return;
+    const modelEntries = Array.isArray(next.modelEntries) ? next.modelEntries : [];
+    const selected = modelEntries.find((entry) => entry.value === next.model);
     state = {
       model: next.model || '',
-      modelEntries: Array.isArray(next.modelEntries) ? next.modelEntries : [],
+      modelEntries,
+      mode: next.mode || state.mode || 'read',
+      workspace: next.workspace || '',
+      modes: Array.isArray(next.modes) && next.modes.length ? next.modes : state.modes,
+      tools: typeof next.tools === 'boolean' ? next.tools : !!(selected && selected.tools),
       messages: Array.isArray(next.messages) ? next.messages : [],
       busy: !!next.busy,
       draft: next.draft || null,
     };
     renderModelOptions(state.modelEntries, state.model);
+    renderModeOptions(state.modes, state.mode);
     renderAll();
   }
 
@@ -502,7 +704,7 @@
   }
 
   function syncDraftText(event) {
-    if (!state.draft) state.draft = { text: '', reasoning: '', thinking: false };
+    if (!state.draft) state.draft = { text: '', reasoning: '', thinking: false, tools: draftTools };
     state.draft.text = event.text || '';
     if (typeof event.reasoning === 'string') state.draft.reasoning = event.reasoning;
     if (typeof event.thinking === 'boolean') state.draft.thinking = event.thinking;
@@ -514,6 +716,31 @@
     if (state.draft.thinking) setStatus(t('thinking'));
   }
 
+  function mergeTool(tool, result) {
+    if (!state.busy) return;
+    if (!state.draft) state.draft = { text: '', reasoning: '', thinking: false, tools: [] };
+    const tools = state.draft.tools || (state.draft.tools = []);
+    let entry = tools.find((item) => item.id === tool.id);
+    if (!entry) {
+      entry = { ...tool };
+      tools.push(entry);
+    } else {
+      Object.assign(entry, tool);
+    }
+    if (result) {
+      entry.result = result.result || '';
+      entry.isError = result.isError === true;
+      entry.state = 'done';
+    }
+    if (!draftNode) {
+      welcomeEl.classList.add('hidden');
+      messagesEl.appendChild(makeDraftElement(state.draft));
+    }
+    updateDraftTools(tools);
+    updateDraftThinking(state.draft);
+    scrollToBottom(false);
+  }
+
   function handleEvent(event) {
     if (!event || typeof event.type !== 'string') return;
     switch (event.type) {
@@ -522,6 +749,12 @@
         break;
       case 'delta':
         syncDraftText(event);
+        break;
+      case 'tool':
+        mergeTool(event.tool, null);
+        break;
+      case 'tool-result':
+        mergeTool({ id: event.id, state: 'done' }, event);
         break;
       case 'thinking':
         if (state.draft) {
@@ -627,6 +860,29 @@
     renderModelOptions(state.modelEntries, state.model);
   }
 
+  async function onModeChange() {
+    const value = modeSel.value;
+    if (!value) return;
+    const result = await window.lilithChat.setMode(value).catch(() => null);
+    if (result && result.ok) {
+      if (result.state) applyState(result.state);
+      return;
+    }
+    setStatus(sendErrorText(result && result.error), 'error');
+    renderModeOptions(state.modes, state.mode);
+  }
+
+  async function chooseWorkspace() {
+    const result = await window.lilithChat.chooseWorkspace().catch(() => null);
+    if (!result || !result.ok) {
+      if (!result || result.error !== 'canceled') {
+        setStatus(fill(t('requestFailed'), { error: (result && result.error) || 'unknown' }), 'error');
+      }
+      return;
+    }
+    if (result.state) applyState(result.state);
+  }
+
   async function openModelsPage() {
     try {
       const result = await window.lilithChat.openModels();
@@ -649,6 +905,8 @@
   });
   stopBtn.addEventListener('click', stopRun);
   modelSel.addEventListener('change', onModelChange);
+  modeSel.addEventListener('change', onModeChange);
+  workspaceBtn.addEventListener('click', chooseWorkspace);
   sendBtn.addEventListener('click', submit);
 
   input.addEventListener('input', resizeInput);

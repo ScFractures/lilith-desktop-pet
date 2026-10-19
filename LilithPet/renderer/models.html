@@ -84,6 +84,13 @@
               <input id="api-key" type="password" maxlength="500" placeholder="sk-…（本地服务可留空）" spellcheck="false" />
             </label>
             <p id="key-hint" class="hint full">Key 只保存在本机配置里，并且只会发送到上面填写的 Base URL。</p>
+            <label class="field full tools-field">
+              <span class="checkbox-row">
+                <input id="tools" type="checkbox" />
+                <span id="lbl-tools">允许工具调用</span>
+              </span>
+              <span id="tools-hint" class="hint">启用后，对话窗口会让该模型调用终端和文件工具；权限由对话窗口的模式控制。</span>
+            </label>
           </div>
           <div class="form-foot">
             <span id="status" class="status"></span>

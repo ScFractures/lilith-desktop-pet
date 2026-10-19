@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('lilithChat', {
   stop: () => ipcRenderer.invoke('custom-chat-stop'),
   newChat: () => ipcRenderer.invoke('custom-chat-new'),
   setModel: (model) => ipcRenderer.invoke('custom-chat-set-model', model),
+  setMode: (mode) => ipcRenderer.invoke('custom-chat-set-mode', mode),
+  chooseWorkspace: () => ipcRenderer.invoke('custom-chat-choose-workspace'),
   openModels: () => ipcRenderer.invoke('open-models'),
   getLang: () => ipcRenderer.invoke('i18n-get'),
   close: () => ipcRenderer.invoke('custom-chat-close'),

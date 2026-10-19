@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -393,6 +393,28 @@ ipcMain.handle('custom-chat-new', () => (customChat ? customChat.newChat() : { o
 ipcMain.handle('custom-chat-set-model', (_e, model) => {
   if (!customChat || typeof model !== 'string') return { ok: false, error: 'invalid-model' };
   return customChat.setModel(model);
+});
+
+ipcMain.handle('custom-chat-set-mode', (_e, mode) => {
+  if (!customChat || typeof mode !== 'string') return { ok: false, error: 'invalid-mode' };
+  return customChat.setMode(mode);
+});
+
+ipcMain.handle('custom-chat-choose-workspace', async () => {
+  if (!customChat) return { ok: false, error: 'unavailable' };
+  if (customChat.getState().busy) return { ok: false, error: 'busy' };
+  const options = {
+    title: T().chatChooseWorkspace,
+    properties: ['openDirectory', 'createDirectory'],
+    defaultPath: customChat.getState().workspace,
+  };
+  const result = chatWin && !chatWin.isDestroyed()
+    ? await dialog.showOpenDialog(chatWin, options)
+    : await dialog.showOpenDialog(options);
+  if (result.canceled || !result.filePaths || !result.filePaths[0]) {
+    return { ok: false, error: 'canceled' };
+  }
+  return customChat.setWorkspace(result.filePaths[0]);
 });
 
 ipcMain.handle('custom-chat-close', () => {
