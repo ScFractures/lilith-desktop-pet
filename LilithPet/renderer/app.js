@@ -101,8 +101,8 @@ window.__pet = state;
 let L = null;
 let phrases = {};
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-// lilith_maou is the same character as lilith; only deepseek_m overrides the persona.
-const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_maou: 'lilith', deepseek_m: 'deepseek_m' };
+// lilith_maou is the same character as lilith; the DeepSeek models share their persona.
+const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_maou: 'lilith', deepseek_m: 'deepseek_m', deepseek_maid: 'deepseek_m' };
 
 function applyPersona(model = state.model) {
   if (!L) return;

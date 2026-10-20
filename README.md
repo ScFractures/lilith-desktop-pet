@@ -13,7 +13,8 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.cmd       # Windows launcher (double-click; must stay next to LilithPet/)
 ├── Lilith/               # original 3D model source (FBX + textures)
 ├── Lilith_mao/           # Maou (魔王) model source (FBX + textures; keeps the original folder name)
-└── Deepseek_M/           # DeepSeek M model source (FBX + textures)
+├── Deepseek_M/           # DeepSeek M model source (FBX + textures)
+└── Deepseek/             # DeepSeek Maid model source (GLB with embedded texture)
 ```
 
 ## Getting started
@@ -94,11 +95,11 @@ Messages go only to the Base URL of the custom model you selected. If you used a
 
 ## Models
 
-Three models are included: the original Lilith (`LilithPet/assets/lilith.glb`), Lilith Maou (`LilithPet/assets/lilith_maou.glb`, source in `Lilith_mao/`) and DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
+Four models are included: the original Lilith (`LilithPet/assets/lilith.glb`), Lilith Maou (`LilithPet/assets/lilith_maou.glb`, source in `Lilith_mao/`), DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`) and DeepSeek Maid (`LilithPet/assets/deepseek_maid.glb`, source in `Deepseek/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
 
-Each model has its own standalone voice and AI persona: Lilith (Classic and Maou) is gentle, poetic and playful; DeepSeek M is a calm, concise, analytical assistant with a dry sense of humor. Switching models swaps the AI system prompt and all local lines, and clears the current chat history.
+Each model has its own standalone voice and AI persona: Lilith (Classic and Maou) is gentle, poetic and playful; the two DeepSeek models share a calm, concise, analytical persona with a dry sense of humor. Switching models swaps the AI system prompt and all local lines, and clears the current chat history.
 
-To regenerate a GLB from its FBX source with Blender 4.x or newer:
+To regenerate a GLB from its source file with Blender 4.x or newer:
 
 ```bash
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
@@ -108,9 +109,13 @@ Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
   Deepseek_M/Deepseek_M.fbx LilithPet/assets/deepseek_m.glb \
   --texture Deepseek_M/Deepseek_M/Deepseek_M_basecolor.JPEG
+
+Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
+  Deepseek/Deepseek.glb LilithPet/assets/deepseek_maid.glb \
+  --height 0.98
 ```
 
-The script joins the meshes, decimates to ~260k triangles, downscales the 8K atlas to 4K and exports a Y-up GLB. It never modifies the source files.
+The script joins the meshes, decimates to ~260k triangles, downscales the 8K atlas to 4K and exports a Y-up GLB. `--height` rescales characters authored at a different size to the in-app reference height. It never modifies the source files.
 
 ## Troubleshooting
 

@@ -17,7 +17,7 @@ if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-c
 // Window sizes include ~150-260px of transparent headroom above the pet so a jump never clips her head
 const WINDOW_SIZES = { small: [270, 458], medium: [340, 560], large: [430, 725] };
 // Model key -> i18n label key. The GLB files live in LilithPet/assets/.
-const MODELS = { lilith: 'modelLilith', lilith_maou: 'modelMaou', deepseek_m: 'modelDeepseek' };
+const MODELS = { lilith: 'modelLilith', lilith_maou: 'modelMaou', deepseek_m: 'modelDeepseek', deepseek_maid: 'modelDeepseekMaid' };
 const DEFAULT_MODEL = 'lilith';
 const FLOOR_INSET = 24;
 const GRAVITY = 2600;

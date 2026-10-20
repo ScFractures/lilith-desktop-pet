@@ -13,7 +13,8 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.cmd       # Windows 双击启动器（需与 LilithPet 同目录）
 ├── Lilith/               # 原版 3D 模型源文件（FBX + 贴图）
 ├── Lilith_mao/           # 魔王（Maou）模型源文件（FBX + 贴图；目录沿用原文件名）
-└── Deepseek_M/           # DeepSeek M 模型源文件（FBX + 贴图）
+├── Deepseek_M/           # DeepSeek M 模型源文件（FBX + 贴图）
+└── Deepseek/             # DeepSeek Maid 模型源文件（GLB，内嵌贴图）
 ```
 
 ## 运行
@@ -94,11 +95,11 @@ npm start
 
 ## 模型
 
-应用内置三个模型：原版莉莉丝（`LilithPet/assets/lilith.glb`）、魔王版莉莉丝（`LilithPet/assets/lilith_maou.glb`，源文件在 `Lilith_mao/`）和 DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
+应用内置四个模型：原版莉莉丝（`LilithPet/assets/lilith.glb`）、魔王版莉莉丝（`LilithPet/assets/lilith_maou.glb`，源文件在 `Lilith_mao/`）、DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）和 DeepSeek Maid（`LilithPet/assets/deepseek_maid.glb`，源文件在 `Deepseek/`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
 
-每个模型都有独立的人格和声音：莉莉丝（原版/魔王）温柔、诗意、带点调皮；DeepSeek M 则冷静、简洁、偏理性，带一点克制的冷幽默。切换模型会同时切换 AI 系统提示词和所有本地台词，并清空当前对话上下文。
+每个模型都有独立的人格和声音：莉莉丝（原版/魔王）温柔、诗意、带点调皮；两个 DeepSeek 模型共用冷静、简洁、偏理性的人格，带一点克制的冷幽默。切换模型会同时切换 AI 系统提示词和所有本地台词，并清空当前对话上下文。
 
-如需用 Blender 4.x 或更高版本从 FBX 源文件重新生成 GLB：
+如需用 Blender 4.x 或更高版本从源文件重新生成 GLB：
 
 ```bash
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
@@ -108,9 +109,13 @@ Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
   Deepseek_M/Deepseek_M.fbx LilithPet/assets/deepseek_m.glb \
   --texture Deepseek_M/Deepseek_M/Deepseek_M_basecolor.JPEG
+
+Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
+  Deepseek/Deepseek.glb LilithPet/assets/deepseek_maid.glb \
+  --height 0.98
 ```
 
-脚本会合并网格、减面到约 26 万三角面、把 8K 贴图缩到 4K 并导出 Y-up 的 GLB，不会修改源文件。
+脚本会合并网格、减面到约 26 万三角面、把 8K 贴图缩到 4K 并导出 Y-up 的 GLB。`--height` 会把尺寸不同的角色统一缩放到应用内参考身高，不会修改源文件。
 
 ## 常见问题
 
