@@ -80,6 +80,7 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 - Custom models only chat by default. Edit a model and tick **Allow tool calls** to enable terminal and file tools for it in the chat window (`run_command`, `read_file`, `write_file`, `list_files`); calls appear as a collapsible group below the reply. Tools stay inside the **workspace** chosen in the chat window, and the **mode** menu sets permissions: **Read only** can view files and folders, **Read & write** can create and edit files but not run commands, and **Full access** can run terminal commands. Switching the mode or workspace keeps the current conversation.
 - Switching the 3D model changes her local voice and persona. The model used by the chat window is chosen independently inside that window.
 - Everything is available in Chinese and English: switch with the **Language** submenu in the right-click (or tray) menu. The default follows your system language. The pet, chat window and model settings page all update immediately.
+- On macOS, **Avoid open windows** (right-click or tray menu, on by default) keeps her out of other apps' windows: walks stay within uncovered stretches of the screen bottom, she steps aside when a window covers her, and she hides while the whole bottom edge is occupied.
 
 ### Where data is stored
 

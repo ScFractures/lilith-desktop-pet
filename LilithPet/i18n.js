@@ -31,6 +31,7 @@ const STRINGS = {
     menuWake: '叫醒她',
     menuSleep: '去睡觉',
     menuHide: '隐藏',
+    menuAvoidWindows: '避让打开的窗口',
     // AI plumbing
     errEmptyReply: '返回内容为空',
     errTimeout: '请求超时',
@@ -193,6 +194,7 @@ const STRINGS = {
     menuWake: 'Wake her up',
     menuSleep: 'Go to sleep',
     menuHide: 'Hide',
+    menuAvoidWindows: 'Avoid open windows',
     // AI plumbing
     errEmptyReply: 'The response was empty',
     errTimeout: 'Request timed out',

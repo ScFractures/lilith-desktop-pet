@@ -193,7 +193,10 @@ function layout() {
   camera.lookAt(0, cy, 0);
   camera.updateProjectionMatrix();
 }
-window.addEventListener('resize', layout);
+window.addEventListener('resize', () => {
+  layout();
+  scheduleBodyReport();
+});
 layout();
 
 const tmpBox = new THREE.Box3();
@@ -216,6 +219,17 @@ function petScreenRect() {
     minY = Math.min(minY, py); maxY = Math.max(maxY, py);
   }
   return { l: minX - 6, t: minY - 6, r: maxX + 6, b: maxY + 6 };
+}
+
+let bodyReportTimer = null;
+function reportPetBody() {
+  if (!state.loaded) return;
+  const r = petScreenRect();
+  window.pet.reportPetBody({ l: r.l, r: r.r, t: r.t, b: r.b });
+}
+function scheduleBodyReport(delay = 120) {
+  clearTimeout(bodyReportTimer);
+  bodyReportTimer = setTimeout(reportPetBody, delay);
 }
 
 function inRect(x, y, r) {
@@ -625,6 +639,18 @@ window.pet.on('pet-event', (name, data) => {
       state.targetYaw = 0;
       scheduleIdle();
     }
+  } else if (name === 'avoid-walk') {
+    if (state.mode === 'sleeping') {
+      state.mode = 'idle';
+      window.pet.setSleeping(false);
+    }
+    const speed = data && Number.isFinite(data.speed) ? data.speed : 180;
+    const dir = data && data.dir < 0 ? -1 : 1;
+    state.mode = 'walking';
+    state.walkDir = dir;
+    state.walkSpeed = speed;
+    state.targetYaw = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+    state.walkPhase = 0;
   }
 });
 
@@ -659,6 +685,7 @@ window.pet.on('pet-model', async (key) => {
     clearTimeout(bubbleTimer);
     bubbleEl.classList.remove('show', 'scroll');
     bubbleTextEl.textContent = '';
+    scheduleBodyReport(250);
   } catch (err) {
     console.error('model switch failed:', err && err.message);
     say((L && L.modelLoadFail) || 'Failed to load the model', 5000);
@@ -679,6 +706,7 @@ window.pet.on('pet-model', async (key) => {
     state.mode = 'idle';
     scheduleIdle();
     startLoop();
+    scheduleBodyReport(400);
     setTimeout(() => say(pick(phrases.greet), 2000), 900);
   } catch (err) {
     console.error('model load failed:', err && err.message);

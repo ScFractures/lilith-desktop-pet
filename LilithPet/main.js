@@ -6,6 +6,8 @@ const { spawn } = require('child_process');
 const { STRINGS, normalizeLang, langFromLocale } = require('./i18n');
 const { createCustomChat } = require('./custom-chat');
 const { createCustomModelStore } = require('./custom-models');
+const windowAvoidance = require('./window-avoidance');
+const { createWindowObstacleWatcher, supported: windowAvoidSupported } = require('./window-obstacles');
 
 // Transparent windows crash the GPU process (0xC0000005) on a class of Windows
 // graphics stacks; disabling DirectComposition was the verified fix on real
@@ -28,7 +30,7 @@ let customChat = null;
 let customModels = null;
 let tray = null;
 let cfgFile = null;
-const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, chatBounds: null };
+const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, chatBounds: null, avoidWindows: true };
 
 const T = () => STRINGS[settings.lang] || STRINGS.zh;
 
@@ -50,6 +52,15 @@ if (TEST_MODE) {
 }
 let walkState = null;
 let petSleeping = false;
+
+// Bottom-edge avoidance: on-screen window rects from other apps, the pet's
+// rendered body rect reported by the renderer, and whether we hid her because no
+// free floor segment was left.
+let avoidBody = null;
+let avoidObstacles = [];
+let avoidWatcher = null;
+let avoidHidden = false;
+let avoidCheckTimer = null;
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -74,6 +85,7 @@ function loadCfg() {
   } catch {}
   if (!WINDOW_SIZES[settings.size]) settings.size = 'medium';
   if (!MODELS[settings.model]) settings.model = DEFAULT_MODEL;
+  if (typeof settings.avoidWindows !== 'boolean') settings.avoidWindows = true;
   settings.lang = normalizeLang(settings.lang) || langFromLocale(app.getLocale());
 }
 
@@ -570,6 +582,7 @@ function startFall(vx, vy) {
       px = Math.round(nx);
       persistPos();
       send('pet-event', 'land', { speed: Math.min(speed / 2200, 2.2) });
+      scheduleAvoidCheck();
       if (speed > 2600) {
         // hard landing: little bounce
         setTimeout(() => {
@@ -599,7 +612,19 @@ function startFall(vx, vy) {
   }, 10);
 }
 
-function startWalk(targetX, speed) {
+function avoidLayout() {
+  if (!win || win.isDestroyed() || !avoidBody) return null;
+  const b = win.getBounds();
+  return windowAvoidance.layout({
+    obstacles: avoidObstacles,
+    bounds: b,
+    body: avoidBody,
+    workArea: workArea(b),
+    margin: 10,
+  });
+}
+
+function beginWalk(targetX, speed) {
   stopWalk();
   let last = Date.now();
   const timer = setInterval(() => {
@@ -621,7 +646,160 @@ function startWalk(targetX, speed) {
     }
     win.setPosition(Math.round(b.x + Math.sign(dx) * step), b.y);
   }, WALK_TICK);
-  walkState = { timer };
+  walkState = { timer, targetX, speed };
+}
+
+function startWalk(targetX, speed) {
+  if (!win || win.isDestroyed()) return;
+  const layout = avoidLayout();
+  if (layout) {
+    if (!layout.free.length) {
+      send('pet-event', 'walk-arrived', {});
+      scheduleAvoidCheck();
+      return;
+    }
+    const currentX = win.getBounds().x;
+    const span = windowAvoidance.spanContaining(layout.free, currentX);
+    if (span) {
+      targetX = windowAvoidance.clampToSpan(targetX, span);
+    } else {
+      const escapeX = windowAvoidance.nearestFreeX(layout.free, currentX);
+      if (escapeX != null) targetX = escapeX;
+    }
+  }
+  beginWalk(targetX, speed);
+}
+
+function startAvoidWalk(targetX, speed) {
+  if (!win || win.isDestroyed()) return;
+  const currentX = win.getBounds().x;
+  const delta = targetX - currentX;
+  if (Math.abs(delta) < 1) return;
+  if (walkState && Math.abs(walkState.targetX - targetX) < 1) return;
+  if (process.env.PET_AVOID_DEBUG) console.log('[avoid] walk', Math.round(currentX), '->', Math.round(targetX));
+  send('pet-event', 'avoid-walk', { dir: Math.sign(delta), speed });
+  beginWalk(targetX, speed);
+}
+
+function restoreAvoidHidden() {
+  if (!avoidHidden) return;
+  avoidHidden = false;
+  if (!win || win.isDestroyed()) return;
+  if (process.env.PET_AVOID_DEBUG) console.log('[avoid] restore at', win.getBounds().x);
+  win.showInactive();
+  win.setAlwaysOnTop(true, 'screen-saver');
+  send('pet-visibility', true);
+  send('pet-event', 'land', { speed: 0 });
+}
+
+function scheduleAvoidCheck() {
+  if (avoidCheckTimer) return;
+  avoidCheckTimer = setTimeout(() => {
+    avoidCheckTimer = null;
+    checkAvoidance();
+  }, 40);
+}
+
+function checkAvoidance() {
+  if (!windowAvoidSupported || !settings.avoidWindows) return;
+  if (!win || win.isDestroyed() || !avoidBody) return;
+  if (dragging || fallTimer) return;
+  const visible = win.isVisible();
+  if (!visible && !avoidHidden) return;
+
+  const layout = avoidLayout();
+  if (!layout) return;
+  const b = win.getBounds();
+
+  if (!layout.free.length) {
+    if (visible) {
+      stopWalk();
+      avoidHidden = true;
+      win.hide();
+      send('pet-visibility', false);
+      if (process.env.PET_AVOID_DEBUG) console.log('[avoid] hide; no free floor left');
+    }
+    return;
+  }
+
+  const currentSpan = windowAvoidance.spanContaining(layout.free, b.x);
+  if (!currentSpan) {
+    const nx = windowAvoidance.nearestFreeX(layout.free, b.x);
+    if (nx == null) return;
+    if (avoidHidden) {
+      win.setPosition(Math.round(nx), b.y);
+      restoreAvoidHidden();
+      return;
+    }
+    startAvoidWalk(nx, 220);
+    return;
+  }
+
+  if (avoidHidden) {
+    const nx = windowAvoidance.nearestFreeX(layout.free, b.x);
+    if (nx != null) win.setPosition(Math.round(nx), b.y);
+    restoreAvoidHidden();
+    return;
+  }
+
+  if (walkState && Number.isFinite(walkState.targetX)) {
+    const target = windowAvoidance.clampToSpan(walkState.targetX, currentSpan);
+    if (Math.abs(target - walkState.targetX) > 1) {
+      startAvoidWalk(target, walkState.speed || 180);
+    }
+  }
+}
+
+function startAvoidWatcher() {
+  if (!windowAvoidSupported || !settings.avoidWindows || avoidWatcher) return;
+  if (TEST_MODE && process.env.PET_TEST_AVOID !== '1') return;
+  if (TEST_MODE && process.env.PET_TEST_AVOID_FAKE) {
+    let lastText = null;
+    const fakeFile = process.env.PET_TEST_AVOID_FAKE;
+    const timer = setInterval(() => {
+      try {
+        const text = fs.readFileSync(fakeFile, 'utf8');
+        if (text === lastText) return;
+        lastText = text;
+        const list = JSON.parse(text);
+        avoidObstacles = Array.isArray(list) ? list : [];
+        scheduleAvoidCheck();
+      } catch {}
+    }, 250);
+    avoidWatcher = { stop: () => clearInterval(timer) };
+    scheduleAvoidCheck();
+    return;
+  }
+  avoidWatcher = createWindowObstacleWatcher({
+    excludePids: [process.pid],
+    onUpdate: (windows) => {
+      avoidObstacles = windows;
+      scheduleAvoidCheck();
+    },
+  });
+  if (!avoidWatcher) return;
+  scheduleAvoidCheck();
+}
+
+function stopAvoidWatcher() {
+  if (avoidWatcher) {
+    avoidWatcher.stop();
+    avoidWatcher = null;
+  }
+  avoidObstacles = [];
+}
+
+function setAvoidWindows(on) {
+  settings.avoidWindows = !!on;
+  saveCfgSoon();
+  if (settings.avoidWindows) {
+    startAvoidWatcher();
+    scheduleAvoidCheck();
+  } else {
+    stopAvoidWatcher();
+    restoreAvoidHidden();
+  }
+  refreshTrayMenu();
 }
 
 function applySize(size) {
@@ -645,10 +823,13 @@ function toggleVisible(force) {
   if (!win) return false;
   const show = force != null ? force : !win.isVisible();
   if (show) {
+    avoidHidden = false;
     win.showInactive();
     win.setAlwaysOnTop(true, 'screen-saver');
     send('pet-visibility', true);
+    scheduleAvoidCheck();
   } else {
+    avoidHidden = false;
     win.hide();
     send('pet-visibility', false);
   }
@@ -661,6 +842,7 @@ function resetPosition() {
   const b = win.getBounds();
   win.setPosition(Math.round(wa.x + wa.width - b.width - 80), Math.round(wa.y + wa.height - b.height));
   persistPos();
+  scheduleAvoidCheck();
 }
 
 // --- Windows: hide the pet while another app is fullscreen -------------------
@@ -809,6 +991,12 @@ function trayMenuTemplate() {
     },
     modelSubmenu(refreshTrayMenu),
     languageSubmenu(refreshTrayMenu),
+    ...(windowAvoidSupported ? [{
+      label: t.menuAvoidWindows,
+      type: 'checkbox',
+      checked: settings.avoidWindows,
+      click: (item) => setAvoidWindows(item.checked),
+    }] : []),
     { type: 'separator' },
     { label: t.menuChatWindow, click: () => openCustomChat() },
     { label: t.menuModels, click: () => openModelsWindow() },
@@ -868,6 +1056,24 @@ ipcMain.on('drag-end', () => {
 ipcMain.on('walk-to', (_e, targetX, speed) => startWalk(targetX, speed));
 ipcMain.on('walk-stop', () => { stopWalk(); persistPos(); send('pet-event', 'walk-arrived', {}); });
 
+ipcMain.on('pet-body', (_e, rect) => {
+  if (!rect || !win) return;
+  const l = Number(rect.l);
+  const r = Number(rect.r);
+  const t = Number(rect.t);
+  const b = Number(rect.b);
+  if (![l, r, t, b].every(Number.isFinite) || r <= l || b <= t) return;
+  const bounds = win.getBounds();
+  avoidBody = {
+    left: Math.max(0, Math.min(l, bounds.width)),
+    right: Math.max(0, Math.min(r, bounds.width)),
+    top: Math.max(0, Math.min(t, bounds.height)),
+    bottom: Math.max(0, Math.min(b, bounds.height)),
+  };
+  if (process.env.PET_AVOID_DEBUG) console.log('[avoid] body', JSON.stringify(avoidBody));
+  scheduleAvoidCheck();
+});
+
 ipcMain.handle('get-info', () => {
   const b = win.getBounds();
   const wa = workArea(b);
@@ -907,6 +1113,12 @@ ipcMain.on('context-menu', (_e, at) => {
     },
     modelSubmenu(),
     languageSubmenu(),
+    ...(windowAvoidSupported ? [{
+      label: t.menuAvoidWindows,
+      type: 'checkbox',
+      checked: settings.avoidWindows,
+      click: (item) => setAvoidWindows(item.checked),
+    }] : []),
     { label: t.menuHide, click: () => toggleVisible(false) },
     { type: 'separator' },
     { label: t.menuQuit, click: () => { persistPos(); app.quit(); } },
@@ -1340,6 +1552,7 @@ app.whenReady().then(() => {
   createWindow();
   buildTray();
   if (process.platform === 'win32' && !TEST_MODE) startFullscreenWatcher();
+  startAvoidWatcher();
   startFall(0, 0);
   win.webContents.once('did-finish-load', () => {
     send('pet-event', 'land', { speed: 0.15 });
@@ -1357,7 +1570,9 @@ app.whenReady().then(() => {
       app.quit();
     }, Number(delayMs) || 2500);
   }
-  if (TEST_MODE) runInteractionTest();
+  if (TEST_MODE) {
+    if (!process.env.PET_TEST_AVOID) runInteractionTest();
+  }
   screen.on('display-metrics-changed', () => {
     if (!win) return;
     const b = win.getBounds();
@@ -1366,12 +1581,14 @@ app.whenReady().then(() => {
       win.setPosition(cx, cy);
       persistPos();
     }
+    scheduleAvoidCheck();
   });
 });
 
 app.on('window-all-closed', () => {});
 app.on('before-quit', () => {
   persistPos();
+  if (avoidWatcher) { avoidWatcher.stop(); avoidWatcher = null; }
   if (chatWin && !chatWin.isDestroyed()) {
     settings.chatBounds = chatWin.getBounds();
     try { fs.writeFileSync(cfgFile, JSON.stringify(settings)); } catch {}
