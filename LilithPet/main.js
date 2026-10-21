@@ -17,7 +17,7 @@ if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-c
 // Window sizes include ~150-260px of transparent headroom above the pet so a jump never clips her head
 const WINDOW_SIZES = { small: [270, 458], medium: [340, 560], large: [430, 725] };
 // Model key -> i18n label key. The GLB files live in LilithPet/assets/.
-const MODELS = { lilith: 'modelLilith', lilith_maou: 'modelMaou', deepseek_m: 'modelDeepseek', deepseek_maid: 'modelDeepseekMaid' };
+const MODELS = { lilith: 'modelLilith', deepseek_m: 'modelDeepseek', miku: 'modelMiku' };
 const DEFAULT_MODEL = 'lilith';
 const FLOOR_INSET = 24;
 const GRAVITY = 2600;
@@ -1151,27 +1151,6 @@ function runInteractionTest() {
     console.log('[test] greeting bubble:', await js(`JSON.stringify((() => { const b = document.getElementById('bubble'); const t = document.getElementById('bubbletext'); return { show: b.classList.contains('show'), text: t.textContent.slice(0, 12), scroll: b.classList.contains('scroll'), ch: t.clientHeight, sh: t.scrollHeight }; })())`));
 
     // --- model switch: hot-swap without restart + persisted choice ---
-    selectModel('lilith');
-    for (let i = 0; i < 30 && (await js(`window.__pet.model`)) !== 'lilith'; i++) await wait(200);
-    selectModel('lilith_maou');
-    let modelMao = false;
-    for (let i = 0; i < 40; i++) {
-      const s = JSON.parse(await js(`JSON.stringify({ model: window.__pet.model, loaded: window.__pet.loaded })`));
-      if (s.model === 'lilith_maou' && s.loaded) { modelMao = true; break; }
-      await wait(200);
-    }
-    await wait(600);
-    await shot('m_model_maou');
-    console.log('[test] model labels:', await js(`window.pet.i18nGet().then(p => JSON.stringify({ menu: p.dict.menuModel, classic: p.dict.modelLilith, maou: p.dict.modelMaou }))`));
-    ev({ type: 'mouseMove', x: 170, y: 400 });
-    await wait(300);
-    console.log('[test] maou hover:', await js(`JSON.stringify({ ign: window.__pet.ignoreState, hover: window.__pet.hover })`));
-    ev({ type: 'mouseMove', x: 10, y: 10 });
-    await wait(200);
-    let persistedModel = null;
-    try { persistedModel = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'pet-state.json'), 'utf8')).model; } catch {}
-    console.log('[test] model switch:', JSON.stringify({ switched: modelMao, model: await js(`window.__pet.model`), persisted: persistedModel }));
-
     selectModel('deepseek_m');
     let modelDeepseek = false;
     for (let i = 0; i < 40; i++) {
