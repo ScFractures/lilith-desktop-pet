@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('lilithChat', {
   platform: process.platform,
   getState: () => ipcRenderer.invoke('custom-chat-state'),
   send: (text) => ipcRenderer.invoke('custom-chat-send', text),
+  interject: (text) => ipcRenderer.invoke('custom-chat-interject', text),
   stop: () => ipcRenderer.invoke('custom-chat-stop'),
   newChat: () => ipcRenderer.invoke('custom-chat-new'),
   setModel: (model) => ipcRenderer.invoke('custom-chat-set-model', model),

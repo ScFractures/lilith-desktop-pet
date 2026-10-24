@@ -8,11 +8,10 @@ const customTools = require('./custom-tools');
 
 const MAX_MESSAGES = 140;
 const MAX_PROMPT = 20000;
-const MAX_REASONING = 30000;
 const MAX_TOOL_TEXT = 4000;
 const MAX_TOOL_ROUNDS = 12;
 const MAX_TOOL_CALLS = 32;
-const RUN_LIMIT_MS = 30 * 60 * 1000;
+const RUN_LIMIT_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_WORKSPACE = os.homedir();
 const DEFAULT_MODE = 'read';
 
@@ -143,7 +142,7 @@ function normalizeMessages(input) {
       if (Number.isFinite(message.durationMs)) entry.durationMs = message.durationMs;
       if (typeof message.model === 'string') entry.model = message.model;
       if (typeof message.reasoning === 'string' && message.reasoning.trim()) {
-        entry.reasoning = message.reasoning.slice(0, MAX_REASONING);
+        entry.reasoning = message.reasoning;
       }
       if (message.error === true) {
         entry.error = true;
@@ -271,9 +270,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
 
   function appendReasoning(run, chunk) {
     if (!chunk) return;
-    if (run.reasoning.length >= MAX_REASONING) return;
     run.reasoning += chunk;
-    if (run.reasoning.length > MAX_REASONING) run.reasoning = run.reasoning.slice(0, MAX_REASONING);
   }
 
   function finishRun(run, outcome = {}) {
@@ -296,7 +293,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
       model: run.modelLabel,
     };
     if (run.reasoning && run.reasoning.trim()) {
-      message.reasoning = run.reasoning.trim().slice(0, MAX_REASONING);
+      message.reasoning = run.reasoning.trim();
     }
     if (stopped) message.interrupted = true;
     if (errorText) {
@@ -538,6 +535,26 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     return launchRun(entry, message.text);
   }
 
+  function interject(text) {
+    const prompt = String(text == null ? '' : text).trim();
+    if (!prompt) return { ok: false, error: 'empty' };
+    if (prompt.length > MAX_PROMPT) return { ok: false, error: 'too-long' };
+    const run = activeRun;
+    if (!run || run.finished) return send(prompt);
+    run.stopRequested = true;
+    emit({ type: 'run-status', status: 'stopping' });
+    try { run.controller.abort(); } catch {}
+    return new Promise((resolve) => {
+      const startedAt = Date.now();
+      const timer = setInterval(() => {
+        if (!run.finished && Date.now() - startedAt < 1000) return;
+        clearInterval(timer);
+        if (!run.finished) finishRun(run, { stopped: true });
+        resolve(send(prompt));
+      }, 40);
+    });
+  }
+
   function stop() {
     const run = activeRun;
     if (!run || run.finished) return { ok: false, error: 'idle' };
@@ -615,6 +632,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
   return {
     getState,
     send,
+    interject,
     stop,
     newChat,
     setModel,

@@ -728,6 +728,11 @@ select:disabled {
   cursor: default;
 }
 
+.send-button.interjecting {
+  background: linear-gradient(135deg, #ffb36b, #f08a4b);
+  box-shadow: 0 5px 14px rgba(240, 138, 75, 0.22);
+}
+
 .send-arrow {
   font-size: 13px;
   line-height: 1;

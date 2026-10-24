@@ -399,6 +399,12 @@ ipcMain.handle('custom-chat-send', (_e, text) => {
   return customChat.send(text);
 });
 
+ipcMain.handle('custom-chat-interject', (_e, text) => {
+  if (!customChat) return { ok: false, error: 'unavailable' };
+  if (typeof text !== 'string') return { ok: false, error: 'empty' };
+  return customChat.interject(text);
+});
+
 ipcMain.handle('custom-chat-stop', () => (customChat ? customChat.stop() : { ok: false }));
 ipcMain.handle('custom-chat-new', () => (customChat ? customChat.newChat() : { ok: false }));
 

@@ -29,8 +29,10 @@
       hintEnter: 'Enter 发送',
       placeholder: '和莉莉丝说点什么…',
       send: '发送',
+      interject: '插嘴',
       stop: '停止',
       enterHint: 'Enter 发送 · Shift+Enter 换行',
+      interjectHint: 'Enter 插嘴 · 会先停止当前输出',
       working: '模型正在回答…',
       connecting: '正在连接模型…',
       thinking: '正在思考…',
@@ -84,8 +86,10 @@
       hintEnter: 'Enter to send',
       placeholder: 'Say something to Lilith…',
       send: 'Send',
+      interject: 'Interject',
       stop: 'Stop',
       enterHint: 'Enter to send · Shift+Enter for a new line',
+      interjectHint: 'Enter to interject · stops the current output',
       working: 'The model is replying…',
       connecting: 'Connecting to the model…',
       thinking: 'Thinking…',
@@ -136,6 +140,8 @@
   const stopBtn = document.getElementById('stop');
   const input = document.getElementById('input');
   const sendBtn = document.getElementById('send');
+  const sendLabel = sendBtn.querySelector('[data-i18n]');
+  const enterHintEl = document.querySelector('.composer-foot [data-i18n="enterHint"]');
 
   let lang = 'zh';
   let state = {
@@ -159,6 +165,7 @@
   let statusResetTimer = null;
   let forceScroll = false;
   let draftQueued = false;
+  let submitting = false;
 
   const t = (key) => (LABELS[lang] && LABELS[lang][key]) || LABELS.zh[key] || key;
   const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_m, k) => (vars && k in vars ? vars[k] : `{${k}}`));
@@ -666,7 +673,10 @@
     } else if (/^(就绪|Ready|还没有添加模型|No models yet)$/.test(statusText.textContent || '')) {
       setStatus(t('ready'));
     }
-    sendBtn.disabled = busy || !models || !input.value.trim();
+    sendBtn.disabled = !models || !input.value.trim();
+    sendBtn.classList.toggle('interjecting', busy);
+    sendLabel.textContent = busy ? t('interject') : t('send');
+    enterHintEl.textContent = busy ? t('interjectHint') : t('enterHint');
   }
 
   // ------------------------------------------------------------- state sync
@@ -790,7 +800,7 @@
   function resizeInput() {
     input.style.height = 'auto';
     input.style.height = `${Math.min(150, input.scrollHeight)}px`;
-    sendBtn.disabled = state.busy || !hasModel() || !input.value.trim();
+    sendBtn.disabled = !hasModel() || !input.value.trim();
   }
 
   function sendErrorText(code) {
@@ -805,15 +815,19 @@
   }
 
   async function submit() {
-    if (state.busy || !hasModel()) return;
+    if (submitting || !hasModel()) return;
     const text = input.value.trim();
     if (!text) return;
+    const interject = !!state.busy;
+    submitting = true;
     let result;
     try {
-      result = await window.lilithChat.send(text);
+      result = await (interject ? window.lilithChat.interject(text) : window.lilithChat.send(text));
     } catch (error) {
       setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
       return;
+    } finally {
+      submitting = false;
     }
     if (!result || !result.ok) {
       setStatus(sendErrorText(result && result.error), 'error');
