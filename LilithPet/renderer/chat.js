@@ -3,6 +3,29 @@
   const LABELS = {
     zh: {
       newChat: '新对话',
+      history: '历史',
+      historyTitle: '历史对话',
+      closeHistory: '收起',
+      searchHistory: '搜索标题或消息…',
+      noHistoryResults: '没有找到匹配的对话',
+      historySavedLocally: '对话自动保存在本机',
+      untitledConversation: '未命名对话',
+      emptyConversation: '还没有消息',
+      messageCount: '{n} 条消息',
+      renameConversation: '重命名对话',
+      generateTitle: 'AI 起标题',
+      titleGenerating: '正在生成标题…',
+      titleFailed: '生成标题失败，请稍后再试。',
+      deleteConversation: '删除对话',
+      conversationName: '对话名称',
+      cancel: '取消',
+      save: '保存',
+      deleteConversationConfirm: '确定删除「{title}」？此操作不可撤销。',
+      deleteBusyConfirm: '此对话仍在运行，删除会停止当前任务。确定删除「{title}」？此操作不可撤销。',
+      switchBusyConfirm: '模型还在运行。切换对话会停止当前任务，并保存已生成内容。继续吗？',
+      conversationMissing: '这条对话已不存在，请重新选择。',
+      invalidTitle: '请输入对话名称。',
+      historySaveFailed: '对话保存失败，请检查磁盘空间和应用数据目录权限。',
       minimize: '最小化',
       close: '关闭',
       model: '模型',
@@ -54,12 +77,35 @@
       tooLong: '这段话太长了，精简一点。',
       invalidModel: '这个模型已不存在，请重新选择。',
       manageFailed: '打开添加模型页面失败：{error}',
-      newChatConfirm: '开始新对话？当前对话会从窗口中清空。',
-      newChatBusyConfirm: '模型还在回答。开始新对话会停止当前回答并清空对话，继续吗？',
+      newChatBusyConfirm: '模型还在回答。开始新对话会停止当前回答，当前对话会保留在历史中。继续吗？',
+      workspaceConfirm: '切换工作目录会开始新对话，当前对话会保留在历史中。继续吗？',
       requestFailed: '操作失败：{error}',
     },
     en: {
       newChat: 'New chat',
+      history: 'History',
+      historyTitle: 'Conversations',
+      closeHistory: 'Hide',
+      searchHistory: 'Search titles or messages…',
+      noHistoryResults: 'No matching conversations',
+      historySavedLocally: 'Conversations saved on this device',
+      untitledConversation: 'Untitled conversation',
+      emptyConversation: 'No messages yet',
+      messageCount: '{n} messages',
+      renameConversation: 'Rename conversation',
+      generateTitle: 'Suggest a title',
+      titleGenerating: 'Generating title…',
+      titleFailed: 'Could not generate a title. Try again later.',
+      deleteConversation: 'Delete conversation',
+      conversationName: 'Conversation name',
+      cancel: 'Cancel',
+      save: 'Save',
+      deleteConversationConfirm: 'Delete “{title}”? This cannot be undone.',
+      deleteBusyConfirm: 'This conversation is still running. Deleting it will stop the task. Delete “{title}”? This cannot be undone.',
+      switchBusyConfirm: 'The model is still running. Switching conversations stops the task and saves the partial reply. Continue?',
+      conversationMissing: 'That conversation no longer exists. Pick another one.',
+      invalidTitle: 'Enter a conversation name.',
+      historySaveFailed: 'Could not save the conversation. Check disk space and application-data permissions.',
       minimize: 'Minimize',
       close: 'Close',
       model: 'Model',
@@ -111,8 +157,8 @@
       tooLong: 'That message is too long — trim it a little.',
       invalidModel: 'That model no longer exists. Pick another one.',
       manageFailed: 'Could not open the add-model page: {error}',
-      newChatConfirm: 'Start a new chat? The current conversation will be cleared from the window.',
-      newChatBusyConfirm: 'The model is still replying. Starting a new chat will stop it and clear the conversation. Continue?',
+      newChatBusyConfirm: 'The model is still replying. A new chat stops it and keeps this conversation in history. Continue?',
+      workspaceConfirm: 'Switching workspace starts a new chat and keeps this conversation in history. Continue?',
       requestFailed: 'Action failed: {error}',
     },
   };
@@ -132,6 +178,20 @@
   const toolsWarning = document.getElementById('tools-warning');
   const toolsWarningText = document.getElementById('tools-warning-text');
   const newChatBtn = document.getElementById('newchat');
+  const historyToggle = document.getElementById('history-toggle');
+  const historyPanel = document.getElementById('history-panel');
+  const historyClose = document.getElementById('history-close');
+  const historyScrim = document.getElementById('history-scrim');
+  const historyList = document.getElementById('history-list');
+  const historySearch = document.getElementById('history-search');
+  const historyEmpty = document.getElementById('history-empty');
+  const historyCount = document.getElementById('history-count');
+  const conversationTitle = document.getElementById('conversation-title');
+  const conversationCount = document.getElementById('conversation-count');
+  const renameDialog = document.getElementById('rename-dialog');
+  const renameForm = document.getElementById('rename-form');
+  const renameInput = document.getElementById('rename-input');
+  const renameSave = document.getElementById('rename-save');
   const minimizeBtn = document.getElementById('minimize');
   const closeBtn = document.getElementById('closewin');
   const spinner = document.getElementById('spinner');
@@ -145,6 +205,10 @@
 
   let lang = 'zh';
   let state = {
+    conversationId: null,
+    conversationTitle: '',
+    conversations: [],
+    inputDraft: '',
     model: '',
     modelEntries: [],
     mode: 'read',
@@ -166,6 +230,16 @@
   let forceScroll = false;
   let draftQueued = false;
   let submitting = false;
+  let historyOpen = window.innerWidth >= 760;
+  let historyResults = null;
+  let historySearchTimer = null;
+  let searchRevision = 0;
+  let changingConversation = false;
+  let renamingId = null;
+  const titleBusy = new Set();
+  const inputDrafts = new Map();
+  let inputDraftTimer = null;
+  let inputDraftWrite = Promise.resolve();
 
   const t = (key) => (LABELS[lang] && LABELS[lang][key]) || LABELS.zh[key] || key;
   const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_m, k) => (vars && k in vars ? vars[k] : `{${k}}`));
@@ -204,6 +278,11 @@
       el.placeholder = t(el.dataset.i18nPlaceholder);
     });
     newChatBtn.textContent = t('newChat');
+    historyToggle.title = t('historyTitle');
+    historyPanel.setAttribute('aria-label', t('historyTitle'));
+    historyList.setAttribute('aria-label', t('historyTitle'));
+    historySearch.setAttribute('aria-label', t('searchHistory'));
+    historyScrim.setAttribute('aria-label', t('closeHistory'));
     manageModelsBtn.title = t('manageModels');
     minimizeBtn.title = t('minimize');
     closeBtn.title = t('close');
@@ -217,6 +296,110 @@
     renderModelOptions(state.modelEntries, state.model);
     renderModeOptions(state.modes, state.mode);
     renderAll();
+  }
+
+  function setHistoryOpen(open) {
+    historyOpen = !!open;
+    document.getElementById('app').classList.toggle('history-open', historyOpen);
+    historyToggle.setAttribute('aria-expanded', String(historyOpen));
+    historyPanel.inert = !historyOpen;
+  }
+
+  function formatHistoryDate(value) {
+    if (!Number.isFinite(value) || value <= 0) return '';
+    return new Intl.DateTimeFormat(lang === 'zh' ? 'zh-CN' : 'en', {
+      month: 'short', day: 'numeric',
+    }).format(new Date(value));
+  }
+
+  function renderHistory() {
+    const query = historySearch.value.trim();
+    const entries = query && historyResults !== null ? historyResults : state.conversations;
+    historyList.textContent = '';
+    historyEmpty.hidden = entries.length > 0;
+    historyCount.textContent = query ? `${entries.length} / ${state.conversations.length}` : String(entries.length);
+    entries.forEach((conversation) => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.dataset.conversationId = conversation.id;
+      const selected = conversation.id === state.conversationId;
+      item.classList.toggle('active', selected);
+      const select = document.createElement('button');
+      select.type = 'button';
+      select.className = 'history-select';
+      select.disabled = changingConversation;
+      if (selected) select.setAttribute('aria-current', 'true');
+      const title = conversation.title || t('untitledConversation');
+      select.title = `${title}\n${conversation.workspace || ''}`;
+      const name = document.createElement('span');
+      name.className = 'history-item-title';
+      name.textContent = title;
+      const preview = document.createElement('span');
+      preview.className = 'history-preview';
+      preview.textContent = conversation.preview || t('emptyConversation');
+      const meta = document.createElement('span');
+      meta.className = 'history-meta';
+      const model = document.createElement('span');
+      model.className = 'history-model';
+      model.textContent = conversation.modelLabel || conversation.model || '';
+      const date = document.createElement('time');
+      date.textContent = formatHistoryDate(conversation.updatedAt);
+      if (conversation.updatedAt) date.dateTime = new Date(conversation.updatedAt).toISOString();
+      date.title = new Date(conversation.updatedAt || Date.now()).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en');
+      meta.append(model, date);
+      select.append(name, preview, meta);
+      select.addEventListener('click', () => switchConversation(conversation.id));
+      const actions = document.createElement('div');
+      actions.className = 'history-actions';
+      const suggest = document.createElement('button');
+      suggest.type = 'button';
+      suggest.className = 'history-action';
+      suggest.textContent = '✦';
+      suggest.title = t('generateTitle');
+      suggest.setAttribute('aria-label', `${t('generateTitle')}: ${title}`);
+      suggest.disabled = changingConversation || titleBusy.has(conversation.id) || !conversation.messageCount;
+      suggest.addEventListener('click', () => suggestTitle(conversation, suggest));
+      const rename = document.createElement('button');
+      rename.type = 'button';
+      rename.className = 'history-action';
+      rename.textContent = '✎';
+      rename.title = t('renameConversation');
+      rename.setAttribute('aria-label', `${t('renameConversation')}: ${title}`);
+      rename.disabled = changingConversation;
+      rename.addEventListener('click', () => openRename(conversation));
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'history-action';
+      remove.textContent = '×';
+      remove.title = t('deleteConversation');
+      remove.setAttribute('aria-label', `${t('deleteConversation')}: ${title}`);
+      remove.disabled = changingConversation;
+      remove.addEventListener('click', () => deleteConversation(conversation));
+      actions.append(suggest, rename, remove);
+      item.append(select, actions);
+      historyList.appendChild(item);
+    });
+  }
+
+  function refreshHistorySearch() {
+    clearTimeout(historySearchTimer);
+    const revision = ++searchRevision;
+    const query = historySearch.value.trim();
+    if (!query) {
+      historyResults = null;
+      renderHistory();
+      return;
+    }
+    historySearchTimer = setTimeout(async () => {
+      try {
+        const entries = await window.lilithChat.listConversations(query);
+        if (revision !== searchRevision) return;
+        historyResults = Array.isArray(entries) ? entries : [];
+        renderHistory();
+      } catch (error) {
+        if (revision === searchRevision) setStatus(fill(t('requestFailed'), { error: String(error.message || error) }), 'error');
+      }
+    }, 150);
   }
 
   function nearBottom() {
@@ -643,6 +826,7 @@
       messagesEl.appendChild(makeDraftElement(draft));
     }
     updateChrome();
+    renderHistory();
     scrollToBottom(stick);
   }
 
@@ -650,9 +834,13 @@
     const busy = !!state.busy;
     const models = hasModel();
     const tools = !!state.tools;
-    modelSel.disabled = busy || !models;
-    modeSel.disabled = busy || !tools;
-    workspaceBtn.disabled = busy || !tools;
+    newChatBtn.disabled = changingConversation;
+    conversationTitle.textContent = state.conversationTitle || t('newChat');
+    conversationTitle.title = conversationTitle.textContent;
+    conversationCount.textContent = fill(t('messageCount'), { n: state.messages.length });
+    modelSel.disabled = busy || changingConversation || !models;
+    modeSel.disabled = busy || changingConversation || !tools;
+    workspaceBtn.disabled = busy || changingConversation || !tools;
     workspaceName.textContent = basename(state.workspace);
     workspaceBtn.title = state.workspace || '';
     workspacePath.textContent = state.workspace || '';
@@ -673,7 +861,7 @@
     } else if (/^(就绪|Ready|还没有添加模型|No models yet)$/.test(statusText.textContent || '')) {
       setStatus(t('ready'));
     }
-    sendBtn.disabled = !models || !input.value.trim();
+    sendBtn.disabled = changingConversation || !models || !input.value.trim();
     sendBtn.classList.toggle('interjecting', busy);
     sendLabel.textContent = busy ? t('interject') : t('send');
     enterHintEl.textContent = busy ? t('interjectHint') : t('enterHint');
@@ -682,9 +870,15 @@
   // ------------------------------------------------------------- state sync
   function applyState(next) {
     if (!next) return;
+    const changed = next.conversationId !== state.conversationId;
+    if (changed && state.conversationId) inputDrafts.set(state.conversationId, input.value);
     const modelEntries = Array.isArray(next.modelEntries) ? next.modelEntries : [];
     const selected = modelEntries.find((entry) => entry.value === next.model);
     state = {
+      conversationId: next.conversationId || null,
+      conversationTitle: next.conversationTitle || '',
+      conversations: Array.isArray(next.conversations) ? next.conversations : state.conversations,
+      inputDraft: typeof next.inputDraft === 'string' ? next.inputDraft : '',
       model: next.model || '',
       modelEntries,
       mode: next.mode || state.mode || 'read',
@@ -695,9 +889,17 @@
       busy: !!next.busy,
       draft: next.draft || null,
     };
+    if (changed) {
+      input.value = inputDrafts.has(state.conversationId) ? inputDrafts.get(state.conversationId) : state.inputDraft;
+      inputDrafts.set(state.conversationId, input.value);
+      resizeInput();
+      forceScroll = true;
+      setStatus(t('ready'));
+    }
     renderModelOptions(state.modelEntries, state.model);
     renderModeOptions(state.modes, state.mode);
     renderAll();
+    if (historySearch.value.trim()) refreshHistorySearch();
   }
 
   function scheduleDraftPaint() {
@@ -753,6 +955,9 @@
 
   function handleEvent(event) {
     if (!event || typeof event.type !== 'string') return;
+    // Ignore a delayed stream event from the conversation that was just left.
+    if (event.conversationId && event.conversationId !== state.conversationId
+      && !['snapshot', 'done', 'stopped', 'error'].includes(event.type)) return;
     switch (event.type) {
       case 'snapshot':
         applyState(event.state);
@@ -775,6 +980,9 @@
         break;
       case 'run-status':
         if (event.status === 'stopping') setStatus(t('stopping'));
+        break;
+      case 'notice':
+        if (event.code === 'history-save-failed') setStatus(t('historySaveFailed'), 'error');
         break;
       case 'done':
         applyState(event.state);
@@ -800,7 +1008,7 @@
   function resizeInput() {
     input.style.height = 'auto';
     input.style.height = `${Math.min(150, input.scrollHeight)}px`;
-    sendBtn.disabled = !hasModel() || !input.value.trim();
+    sendBtn.disabled = changingConversation || !hasModel() || !input.value.trim();
   }
 
   function sendErrorText(code) {
@@ -810,33 +1018,91 @@
       case 'too-long': return t('tooLong');
       case 'invalid-model': return t('invalidModel');
       case 'no-model': return t('noModel');
+      case 'conversation-not-found': return t('conversationMissing');
+      case 'invalid-title': return t('invalidTitle');
+      case 'title-busy': return t('titleGenerating');
+      case 'title-failed': return t('titleFailed');
+      case 'no-messages': return t('titleFailed');
+      case 'history-save-failed': return t('historySaveFailed');
       default: return fill(t('requestFailed'), { error: code || 'unknown' });
     }
   }
 
   async function submit() {
-    if (submitting || !hasModel()) return;
+    if (submitting || changingConversation || !hasModel()) return;
     const text = input.value.trim();
     if (!text) return;
     const interject = !!state.busy;
     submitting = true;
-    let result;
     try {
-      result = await (interject ? window.lilithChat.interject(text) : window.lilithChat.send(text));
+      await flushInputDraft();
+      const result = interject
+        ? await window.lilithChat.interject(text)
+        : await window.lilithChat.send(text);
+      if (!result || !result.ok) {
+        setStatus(sendErrorText(result && result.error), 'error');
+        return;
+      }
+      input.value = '';
+      inputDrafts.set(state.conversationId, '');
+      resizeInput();
+      forceScroll = true;
+      scrollToBottom(true);
     } catch (error) {
       setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
-      return;
     } finally {
       submitting = false;
     }
-    if (!result || !result.ok) {
-      setStatus(sendErrorText(result && result.error), 'error');
-      return;
-    }
-    input.value = '';
+  }
+
+  function persistInputDraft() {
+    clearTimeout(inputDraftTimer);
+    if (!state.conversationId) return inputDraftWrite;
+    const id = state.conversationId;
+    const text = input.value;
+    inputDrafts.set(id, text);
+    // Serialize writes so a late debounce cannot replace a newer draft.
+    inputDraftWrite = inputDraftWrite.catch(() => {}).then(() => window.lilithChat.saveInputDraft(id, text)).then((result) => {
+      if (result && !result.ok && result.error !== 'conversation-not-found') setStatus(sendErrorText(result.error), 'error');
+    }).catch((error) => {
+      setStatus(fill(t('requestFailed'), { error: String(error.message || error) }), 'error');
+    });
+    return inputDraftWrite;
+  }
+
+  function flushInputDraft() {
+    return persistInputDraft();
+  }
+
+  function onInput() {
     resizeInput();
-    forceScroll = true;
-    scrollToBottom(true);
+    inputDrafts.set(state.conversationId, input.value);
+    clearTimeout(inputDraftTimer);
+    inputDraftTimer = setTimeout(persistInputDraft, 350);
+  }
+
+  async function conversationAction(action, { closeHistory = false } = {}) {
+    if (changingConversation) return;
+    changingConversation = true;
+    updateChrome();
+    renderHistory();
+    try {
+      await flushInputDraft();
+      const result = await action();
+      if (!result || !result.ok) {
+        setStatus(sendErrorText(result && result.error), 'error');
+        return;
+      }
+      if (result.state) applyState(result.state);
+      if (closeHistory && window.innerWidth < 760) setHistoryOpen(false);
+      input.focus();
+    } catch (error) {
+      setStatus(fill(t('requestFailed'), { error: String(error.message || error) }), 'error');
+    } finally {
+      changingConversation = false;
+      updateChrome();
+      renderHistory();
+    }
   }
 
   async function stopRun() {
@@ -848,17 +1114,83 @@
   }
 
   async function newChat() {
-    if (state.busy) {
-      if (!window.confirm(t('newChatBusyConfirm'))) return;
-    } else if (state.messages.length && !window.confirm(t('newChatConfirm'))) {
+    if (changingConversation) return;
+    if (state.busy && !window.confirm(t('newChatBusyConfirm'))) return;
+    await conversationAction(() => window.lilithChat.newChat(), { closeHistory: true });
+  }
+
+  async function switchConversation(id) {
+    if (changingConversation) return;
+    if (id === state.conversationId) {
+      if (window.innerWidth < 760) setHistoryOpen(false);
+      input.focus();
       return;
     }
+    if (state.busy && !window.confirm(t('switchBusyConfirm'))) return;
+    await conversationAction(() => window.lilithChat.switchConversation(id), { closeHistory: true });
+  }
+
+  async function deleteConversation(conversation) {
+    if (changingConversation) return;
+    const key = state.busy && conversation.id === state.conversationId ? 'deleteBusyConfirm' : 'deleteConversationConfirm';
+    if (!window.confirm(fill(t(key), { title: conversation.title || t('untitledConversation') }))) return;
+    await conversationAction(async () => {
+      const result = await window.lilithChat.deleteConversation(conversation.id);
+      if (result && result.ok) inputDrafts.delete(conversation.id);
+      return result;
+    });
+  }
+
+  function openRename(conversation) {
+    if (changingConversation || renameDialog.open) return;
+    renamingId = conversation.id;
+    renameInput.value = conversation.title || '';
+    renameSave.disabled = false;
+    renameDialog.showModal();
+    renameInput.focus();
+    renameInput.select();
+  }
+
+  async function saveRename(event) {
+    event.preventDefault();
+    if (!renamingId || !renameInput.value.trim() || renameSave.disabled) return;
+    renameSave.disabled = true;
     try {
-      const result = await window.lilithChat.newChat();
-      if (result && result.state) applyState(result.state);
-      input.focus();
+      const result = await window.lilithChat.renameConversation(renamingId, renameInput.value.trim());
+      if (!result || !result.ok) {
+        setStatus(sendErrorText(result && result.error), 'error');
+        return;
+      }
+      if (result.state) applyState(result.state);
+      renameDialog.close();
+    } catch (error) {
+      setStatus(fill(t('requestFailed'), { error: String(error.message || error) }), 'error');
+    } finally {
+      renameSave.disabled = false;
+    }
+  }
+
+  async function suggestTitle(conversation, button) {
+    if (changingConversation || titleBusy.has(conversation.id)) return;
+    titleBusy.add(conversation.id);
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = '…';
+    setStatus(t('titleGenerating'));
+    try {
+      const result = await window.lilithChat.suggestTitle(conversation.id);
+      if (!result || !result.ok) {
+        setStatus(sendErrorText(result && result.error), 'error');
+        return;
+      }
+      if (result.state) applyState(result.state);
+      setStatus(t('done'));
     } catch (error) {
       setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
+    } finally {
+      titleBusy.delete(conversation.id);
+      button.disabled = changingConversation || !conversation.messageCount;
+      button.textContent = label;
     }
   }
 
@@ -887,14 +1219,18 @@
   }
 
   async function chooseWorkspace() {
-    const result = await window.lilithChat.chooseWorkspace().catch(() => null);
-    if (!result || !result.ok) {
-      if (!result || result.error !== 'canceled') {
-        setStatus(fill(t('requestFailed'), { error: (result && result.error) || 'unknown' }), 'error');
-      }
+    if (state.busy || changingConversation) return;
+    if ((state.messages.length || input.value.trim()) && !window.confirm(t('workspaceConfirm'))) return;
+    let result;
+    try {
+      await flushInputDraft();
+      result = await window.lilithChat.chooseWorkspace();
+    } catch (error) {
+      setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
       return;
     }
-    if (result.state) applyState(result.state);
+    if (result && result.ok && result.state) applyState(result.state);
+    else if (result && !result.ok && result.error !== 'canceled') setStatus(sendErrorText(result.error), 'error');
   }
 
   async function openModelsPage() {
@@ -910,8 +1246,24 @@
 
   // ------------------------------------------------------------- wiring
   newChatBtn.addEventListener('click', newChat);
+  historyToggle.addEventListener('click', () => setHistoryOpen(!historyOpen));
+  historyClose.addEventListener('click', () => { setHistoryOpen(false); historyToggle.focus(); });
+  historyScrim.addEventListener('click', () => setHistoryOpen(false));
+  historySearch.addEventListener('input', refreshHistorySearch);
+  renameForm.addEventListener('submit', saveRename);
+  document.getElementById('rename-cancel').addEventListener('click', () => renameDialog.close());
+  renameDialog.addEventListener('close', () => { renamingId = null; });
+  window.addEventListener('beforeunload', () => { persistInputDraft(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) persistInputDraft(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !renameDialog.open && historyOpen) {
+      setHistoryOpen(false);
+      historyToggle.focus();
+    }
+  });
+  setHistoryOpen(historyOpen);
   minimizeBtn.addEventListener('click', () => window.lilithChat.minimize());
-  closeBtn.addEventListener('click', () => window.lilithChat.close());
+  closeBtn.addEventListener('click', async () => { await flushInputDraft(); window.lilithChat.close(); });
   manageModelsBtn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -923,7 +1275,7 @@
   workspaceBtn.addEventListener('click', chooseWorkspace);
   sendBtn.addEventListener('click', submit);
 
-  input.addEventListener('input', resizeInput);
+  input.addEventListener('input', onInput);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();

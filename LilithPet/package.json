@@ -5,7 +5,8 @@
   "description": "Lilith desktop pet",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "test": "node --test tests"
   },
   "license": "MIT",
   "devDependencies": {

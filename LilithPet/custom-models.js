@@ -1597,6 +1597,7 @@ function createCustomModelStore({ file, legacyFile, onChanged }) {
       signal: options.signal,
       onDelta: options.onDelta,
       onReasoning: options.onReasoning,
+      maxTokens: options.maxTokens,
     });
   }
 

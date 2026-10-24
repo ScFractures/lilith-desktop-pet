@@ -19,75 +19,108 @@
       <div class="title-actions">
         <button id="minimize" class="win-button" type="button">–</button>
         <button id="closewin" class="win-button close" type="button">×</button>
+        <button id="history-toggle" class="ghost-button" type="button" aria-controls="history-panel" aria-expanded="false" data-i18n="history">历史</button>
         <button id="newchat" class="ghost-button" type="button" data-i18n="newChat">新对话</button>
       </div>
     </header>
 
-    <section id="controls">
-      <div class="control model-control">
-        <span class="control-label">
-          <span data-i18n="model">模型</span>
-          <button id="manage-models" class="manage-models" type="button" data-i18n="manageModels">添加模型</button>
-        </span>
-        <select id="model"></select>
-      </div>
-      <label class="control mode-control">
-        <span class="control-label" data-i18n="mode">模式</span>
-        <select id="mode"></select>
-      </label>
-      <button id="workspace" class="workspace" type="button" title="">
-        <span class="workspace-icon">⌂</span>
-        <span id="workspace-name">~</span>
-      </button>
-    </section>
-
-    <div id="model-warning" class="model-warning" hidden>
-      <span class="warn-dot"></span>
-      <span data-i18n="noModelWarning">还没有添加模型。点上面的「添加模型」填写接口信息。</span>
-    </div>
-
-    <div id="tools-warning" class="model-warning tools-warning" hidden>
-      <span class="warn-dot"></span>
-      <span id="tools-warning-text"></span>
-    </div>
-
-    <main id="messages" aria-live="polite">
-      <div id="welcome" class="welcome">
-        <div class="welcome-orbit"><span>L</span></div>
-        <h1 data-i18n="welcomeTitle">和莉莉丝聊天</h1>
-        <p data-i18n="welcomeBody">选一个模型，直接开始。回复会以流式出现，思考型模型还会显示思考过程。</p>
-        <div class="welcome-hints">
-          <span class="hint-chip" data-i18n="hintModel">模型可随时切换</span>
-          <span class="hint-chip" data-i18n="hintTypes">OpenAI · Anthropic · Reasoning</span>
-          <span class="hint-chip" data-i18n="hintEnter">Enter 发送</span>
+    <div id="chat-layout">
+      <button id="history-scrim" type="button" tabindex="-1" aria-label="关闭历史列表"></button>
+      <aside id="history-panel" aria-label="历史对话" inert>
+        <div class="history-heading">
+          <h2 data-i18n="historyTitle">历史对话</h2>
+          <span id="history-count" class="history-count"></span>
+          <button id="history-close" class="history-close" type="button" data-i18n="closeHistory">收起</button>
         </div>
-      </div>
-    </main>
+        <input id="history-search" class="history-search" type="search" maxlength="200" data-i18n-placeholder="searchHistory" placeholder="搜索标题或消息…" aria-label="搜索历史对话" />
+        <nav id="history-list" class="history-list" aria-label="历史对话"></nav>
+        <p id="history-empty" class="history-empty" hidden data-i18n="noHistoryResults">没有找到匹配的对话</p>
+        <p class="history-foot" data-i18n="historySavedLocally">对话自动保存在本机</p>
+      </aside>
+      <section id="conversation">
+        <div id="conversation-bar">
+          <h1 id="conversation-title"></h1>
+          <span id="conversation-count"></span>
+        </div>
 
-    <div id="statusbar" class="statusbar">
-      <div class="status-left">
-        <span id="spinner" class="spinner" hidden></span>
-        <span id="status-text"></span>
-      </div>
-      <div class="status-right">
-        <button id="stop" class="stop-button" type="button" hidden data-i18n="stop">停止</button>
-      </div>
+        <section id="controls">
+          <div class="control model-control">
+            <span class="control-label">
+              <span data-i18n="model">模型</span>
+              <button id="manage-models" class="manage-models" type="button" data-i18n="manageModels">添加模型</button>
+            </span>
+            <select id="model"></select>
+          </div>
+          <label class="control mode-control">
+            <span class="control-label" data-i18n="mode">模式</span>
+            <select id="mode"></select>
+          </label>
+          <button id="workspace" class="workspace" type="button" title="">
+            <span class="workspace-icon">⌂</span>
+            <span id="workspace-name">~</span>
+          </button>
+        </section>
+
+        <div id="model-warning" class="model-warning" hidden>
+          <span class="warn-dot"></span>
+          <span data-i18n="noModelWarning">还没有添加模型。点上面的「添加模型」填写接口信息。</span>
+        </div>
+
+        <div id="tools-warning" class="model-warning tools-warning" hidden>
+          <span class="warn-dot"></span>
+          <span id="tools-warning-text"></span>
+        </div>
+
+        <main id="messages" aria-live="polite">
+          <div id="welcome" class="welcome">
+            <div class="welcome-orbit"><span>L</span></div>
+            <h1 data-i18n="welcomeTitle">和莉莉丝聊天</h1>
+            <p data-i18n="welcomeBody">选一个模型，直接开始。回复会以流式出现，思考型模型还会显示思考过程。</p>
+            <div class="welcome-hints">
+              <span class="hint-chip" data-i18n="hintModel">模型可随时切换</span>
+              <span class="hint-chip" data-i18n="hintTypes">OpenAI · Anthropic · Reasoning</span>
+              <span class="hint-chip" data-i18n="hintEnter">Enter 发送</span>
+            </div>
+          </div>
+        </main>
+
+        <div id="statusbar" class="statusbar">
+          <div class="status-left">
+            <span id="spinner" class="spinner" hidden></span>
+            <span id="status-text"></span>
+          </div>
+          <div class="status-right">
+            <button id="stop" class="stop-button" type="button" hidden data-i18n="stop">停止</button>
+          </div>
+        </div>
+
+        <footer id="composer">
+          <div class="composer-box">
+            <textarea id="input" rows="1" data-i18n-placeholder="placeholder" placeholder="和莉莉丝说点什么…"></textarea>
+            <button id="send" class="send-button" type="button" disabled>
+              <span data-i18n="send">发送</span>
+              <span class="send-arrow">↑</span>
+            </button>
+          </div>
+          <div class="composer-foot">
+            <span data-i18n="enterHint">Enter 发送 · Shift+Enter 换行</span>
+            <span id="workspace-path" class="workspace-path"></span>
+          </div>
+        </footer>
+      </section>
     </div>
-
-    <footer id="composer">
-      <div class="composer-box">
-        <textarea id="input" rows="1" data-i18n-placeholder="placeholder" placeholder="和莉莉丝说点什么…"></textarea>
-        <button id="send" class="send-button" type="button" disabled>
-          <span data-i18n="send">发送</span>
-          <span class="send-arrow">↑</span>
-        </button>
-      </div>
-      <div class="composer-foot">
-        <span data-i18n="enterHint">Enter 发送 · Shift+Enter 换行</span>
-        <span id="workspace-path" class="workspace-path"></span>
-      </div>
-    </footer>
   </div>
+  <dialog id="rename-dialog" class="rename-dialog">
+    <form id="rename-form">
+      <h2 data-i18n="renameConversation">重命名对话</h2>
+      <label for="rename-input" data-i18n="conversationName">对话名称</label>
+      <input id="rename-input" type="text" maxlength="80" autocomplete="off" required />
+      <div class="dialog-actions">
+        <button id="rename-cancel" class="ghost-button" type="button" data-i18n="cancel">取消</button>
+        <button id="rename-save" class="ghost-button primary" type="submit" data-i18n="save">保存</button>
+      </div>
+    </form>
+  </dialog>
   <script src="./chat.js"></script>
 </body>
 </html>

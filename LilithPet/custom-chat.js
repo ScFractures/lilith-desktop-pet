@@ -8,9 +8,12 @@ const customTools = require('./custom-tools');
 
 const MAX_MESSAGES = 140;
 const MAX_PROMPT = 20000;
+const MAX_TITLE = 80;
+const CHECKPOINT_MS = 1200;
 const MAX_TOOL_TEXT = 4000;
 const MAX_TOOL_ROUNDS = 12;
 const MAX_TOOL_CALLS = 32;
+const TITLE_TIMEOUT_MS = 30000;
 const RUN_LIMIT_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_WORKSPACE = os.homedir();
 const DEFAULT_MODE = 'read';
@@ -51,6 +54,18 @@ function safeJson(value) {
 function isDirectory(dir) {
   try {
     return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function writeJsonAtomic(file, value) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
+    fs.renameSync(tmp, file);
+    return true;
   } catch {
     return false;
   }
@@ -117,13 +132,32 @@ function toolSystemPrompt(workspace, mode) {
   ].join('\n');
 }
 
-function writeJsonAtomic(file, value) {
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
-    fs.renameSync(tmp, file);
-  } catch {}
+function cleanTitle(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE);
+}
+
+function titlePrompt(userText, assistantText) {
+  const lines = [
+    'Give this conversation a short title.',
+    'Use the same language as the user message: at most 16 Chinese characters or 8 English words.',
+    'Output only the title itself — no quotes, no trailing punctuation, no explanation.',
+    '',
+    `User: ${String(userText || '').slice(0, 2000)}`,
+  ];
+  const assistant = String(assistantText || '').slice(0, 3000);
+  if (assistant) lines.push('', `Assistant: ${assistant}`);
+  return lines.join('\n');
+}
+
+function tidyTitle(value) {
+  const line = String(value || '').split(/\r?\n/).map((item) => item.trim()).find(Boolean) || '';
+  return line
+    .replace(/^(?:title|标题)\s*[:：]\s*/i, '')
+    .replace(/^["'“”‘’「」『』【】]+|["'“”‘’「」『』【】]+$/g, '')
+    .replace(/[。．.！!？?；;，,、\s]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40);
 }
 
 function normalizeMessages(input) {
@@ -155,26 +189,106 @@ function normalizeMessages(input) {
   return out.slice(-MAX_MESSAGES);
 }
 
-function loadState(file) {
-  let parsed = null;
-  try { parsed = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+function createConversation(options = {}) {
+  const now = Date.now();
   return {
-    model: typeof parsed?.model === 'string' ? parsed.model.slice(0, 120) : '',
-    mode: MODES.some((mode) => mode.key === parsed?.mode) ? parsed.mode : DEFAULT_MODE,
-    workspace: isDirectory(parsed?.workspace) ? path.resolve(parsed.workspace) : DEFAULT_WORKSPACE,
-    messages: normalizeMessages(parsed?.messages),
-    updatedAt: Number.isFinite(parsed?.updatedAt) ? parsed.updatedAt : 0,
+    id: crypto.randomUUID(),
+    title: '',
+    titleSource: 'default',
+    model: options.model || '',
+    mode: options.mode || DEFAULT_MODE,
+    workspace: options.workspace || DEFAULT_WORKSPACE,
+    messages: [],
+    inputDraft: '',
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function normalizeConversation(source) {
+  const parsed = source && typeof source === 'object' ? source : {};
+  const conversation = createConversation();
+  conversation.id = typeof parsed.id === 'string' && parsed.id && parsed.id.length <= 80
+    ? parsed.id : conversation.id;
+  conversation.messages = normalizeMessages(parsed.messages);
+  // A checkpoint is never treated as a completed answer after an unclean exit.
+  if (parsed.pendingReply) {
+    const recovered = normalizeMessages([{ ...parsed.pendingReply, role: 'assistant', interrupted: true }])[0];
+    if (recovered && !conversation.messages.some((message) => message.id === recovered.id)) {
+      recovered.tools.forEach((tool) => { tool.state = 'done'; });
+      conversation.messages.push(recovered);
+    }
+  }
+  const firstUser = conversation.messages.find((message) => message.role === 'user');
+  const fallbackTitle = cleanTitle(firstUser?.text);
+  conversation.title = cleanTitle(parsed.title) || fallbackTitle;
+  if (parsed.titleSource === 'manual' || parsed.titleSource === 'ai') {
+    conversation.titleSource = parsed.titleSource;
+  } else if (conversation.title && fallbackTitle && conversation.title !== fallbackTitle) {
+    conversation.titleSource = 'manual';
+  }
+  conversation.model = typeof parsed.model === 'string' && parsed.model.trim()
+    ? parsed.model.trim().slice(0, 120) : '';
+  conversation.mode = MODES.some((mode) => mode.key === parsed.mode) ? parsed.mode : DEFAULT_MODE;
+  conversation.workspace = isDirectory(parsed.workspace) ? path.resolve(parsed.workspace) : DEFAULT_WORKSPACE;
+  conversation.inputDraft = typeof parsed.inputDraft === 'string' ? parsed.inputDraft.slice(0, MAX_PROMPT) : '';
+  conversation.createdAt = Number.isFinite(parsed.createdAt) ? parsed.createdAt
+    : (conversation.messages[0]?.at || Date.now());
+  conversation.updatedAt = Number.isFinite(parsed.updatedAt) && parsed.updatedAt > 0
+    ? parsed.updatedAt : conversation.createdAt;
+  return conversation;
+}
+
+function loadHistory(file) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid history');
+    if (parsed.version != null && ![1, 2].includes(parsed.version)) throw new Error('Unknown history version');
+    if (parsed.version === 2 && !Array.isArray(parsed.conversations)) throw new Error('Invalid conversations');
+  } catch (error) {
+    if (error.code !== 'ENOENT' && fs.existsSync(file)) {
+      // Keep the original bytes for manual recovery rather than silently overwriting them.
+      fs.copyFileSync(file, `${file}.corrupt-${Date.now()}.bak`, fs.constants.COPYFILE_EXCL);
+      console.error('[custom-chat] Invalid history was backed up:', error.message);
+    }
+    parsed = null;
+  }
+  const sources = parsed?.version === 2 ? parsed.conversations : (parsed ? [parsed] : []);
+  const seen = new Set();
+  const conversations = sources.filter((entry) => entry && typeof entry === 'object').map((entry) => {
+    const conversation = normalizeConversation(entry);
+    if (seen.has(conversation.id)) conversation.id = crypto.randomUUID();
+    seen.add(conversation.id);
+    return conversation;
+  });
+  if (!conversations.length) conversations.push(createConversation());
+  if (parsed && parsed.version !== 2) {
+    const backup = `${file}.v1-backup`;
+    if (!fs.existsSync(backup)) fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL);
+  }
+  return {
+    conversations,
+    activeConversationId: conversations.some((entry) => entry.id === parsed?.activeConversationId)
+      ? parsed.activeConversationId : conversations[0].id,
+    needsSave: !!parsed && (parsed.version !== 2 || sources.some((entry) => entry?.pendingReply)),
   };
 }
 
 function createCustomChat({ stateFile, customStore, onEvent }) {
-  const state = loadState(stateFile);
+  const history = loadHistory(stateFile);
+  let state = history.conversations.find((entry) => entry.id === history.activeConversationId);
   let activeRun = null;
   let shuttingDown = false;
+  const titleJobs = new Map();
+  const autoTitleTried = new Set();
 
   const emit = (event) => {
     if (shuttingDown) return;
-    try { onEvent(event); } catch {}
+    if (activeRun && !activeRun.finished && ['delta', 'tool', 'tool-result', 'thinking'].includes(event.type)) {
+      checkpointSoon(activeRun);
+    }
+    try { onEvent({ conversationId: state.id, ...event }); } catch {}
   };
 
   function customList() {
@@ -208,29 +322,44 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
   }
 
   function ensureModel() {
-    if (resolveCustom(state.model)) return false;
+    if (state.model && resolveCustom(state.model)) return false;
     const entries = customList();
     state.model = entries.length ? `custom:${entries[0].id}` : '';
     return true;
   }
 
-  function save() {
-    state.updatedAt = Date.now();
-    state.messages = state.messages.slice(-MAX_MESSAGES);
-    writeJsonAtomic(stateFile, {
-      version: 1,
-      model: state.model,
-      mode: state.mode,
-      workspace: state.workspace,
-      messages: state.messages,
-      updatedAt: state.updatedAt,
-    });
+  function listConversations(query = '') {
+    const search = String(query || '').trim().toLocaleLowerCase().slice(0, 200);
+    return history.conversations
+      .filter((conversation) => !search || [conversation.title, conversation.model, conversation.workspace]
+        .some((value) => String(value || '').toLocaleLowerCase().includes(search))
+        || conversation.messages.some((message) => message.text.toLocaleLowerCase().includes(search)))
+      .slice().sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt)
+      .map((conversation) => {
+        const custom = resolveCustom(conversation.model);
+        const last = [...conversation.messages].reverse().find((message) => message.text.trim() || message.errorText);
+        return {
+          id: conversation.id,
+          title: conversation.title,
+          preview: String(last?.text || last?.errorText || '').replace(/\s+/g, ' ').slice(0, 120),
+          model: conversation.model,
+          modelLabel: custom ? custom.name : conversation.model,
+          workspace: conversation.workspace,
+          messageCount: conversation.messages.length,
+          createdAt: conversation.createdAt,
+          updatedAt: conversation.updatedAt,
+        };
+      });
   }
 
   function getState() {
-    if (ensureModel()) save();
+    if (ensureModel()) save({ touch: false });
     const selected = resolveCustom(state.model);
     return {
+      conversationId: state.id,
+      conversationTitle: state.title,
+      conversations: listConversations(),
+      inputDraft: state.inputDraft,
       model: state.model,
       modelKind: selected ? 'custom' : null,
       modelLabel: selected ? selected.name : '',
@@ -252,6 +381,41 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
       } : null,
       updatedAt: state.updatedAt,
     };
+  }
+
+  function pendingReply(run) {
+    return {
+      id: run.messageId,
+      role: 'assistant',
+      text: run.text.trim(),
+      reasoning: run.reasoning,
+      tools: run.tools.map((tool) => ({ ...tool })),
+      at: run.startedAt,
+      durationMs: Date.now() - run.startedAt,
+      model: run.modelLabel,
+    };
+  }
+
+  function checkpointSoon(run) {
+    if (run.checkpointTimer || run.finished) return;
+    run.checkpointTimer = setTimeout(() => {
+      run.checkpointTimer = null;
+      if (activeRun === run && !run.finished) save();
+    }, CHECKPOINT_MS);
+  }
+
+  function save({ touch = true } = {}) {
+    if (touch) state.updatedAt = Date.now();
+    history.activeConversationId = state.id;
+    if (activeRun && !activeRun.finished) state.pendingReply = pendingReply(activeRun);
+    else delete state.pendingReply;
+    const saved = writeJsonAtomic(stateFile, {
+      version: 2,
+      activeConversationId: state.id,
+      conversations: history.conversations,
+    });
+    if (!saved) emit({ type: 'notice', code: 'history-save-failed' });
+    return saved;
   }
 
   function emitSnapshot() {
@@ -277,6 +441,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     if (run.finished) return;
     run.finished = true;
     clearTimeout(run.hardTimer);
+    clearTimeout(run.checkpointTimer);
     if (activeRun === run) activeRun = null;
 
     const text = run.text.trim();
@@ -284,7 +449,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     const stopped = outcome.stopped === true;
     const durationMs = Date.now() - run.startedAt;
     const message = {
-      id: crypto.randomUUID(),
+      id: run.messageId,
       role: 'assistant',
       text,
       tools: run.tools.map((tool) => ({ ...tool, state: 'done' })),
@@ -307,10 +472,12 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     if (errorText) emit({ type: 'error', message, error: errorText, state: getState() });
     else if (stopped) emit({ type: 'stopped', message, state: getState() });
     else emit({ type: 'done', message, state: getState() });
+
+    if (!errorText) maybeAutoTitle(state);
   }
 
-  function runCustomTools(run, entry, history) {
-    const conversation = history.map((message) => ({ role: message.role, content: message.content }));
+  function runCustomTools(run, entry, historyMessages) {
+    const conversation = historyMessages.map((message) => ({ role: message.role, content: message.content }));
     conversation.unshift({ role: 'system', content: toolSystemPrompt(state.workspace, state.mode) });
     const permissionMode = PERMISSION_MODE[state.mode] || 'default';
     let callCount = 0;
@@ -340,7 +507,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
           return;
         }
         let textStarted = false;
-        const turn = await customStore.toolTurn(entry.id, conversation, {
+        const turn = await customStore.toolTurn(entry, conversation, {
           signal: run.controller.signal,
           tools: customTools.toolSpecs(),
           onDelta: (chunk) => {
@@ -439,6 +606,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
       controller: new AbortController(),
       entry,
       modelLabel: entry.name,
+      messageId: crypto.randomUUID(),
       text: '',
       reasoning: '',
       thinking: false,
@@ -448,11 +616,12 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
       timedOut: false,
       startedAt: Date.now(),
       hardTimer: null,
+      checkpointTimer: null,
     };
     activeRun = run;
     emit({ type: 'snapshot', state: getState() });
 
-    const history = customStore
+    const historyMessages = customStore
       ? customStore.buildHistory(state.messages)
       : state.messages.map((message) => ({ role: message.role, content: message.text }));
 
@@ -466,11 +635,11 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     }, RUN_LIMIT_MS);
 
     if (entry.tools === true) {
-      runCustomTools(run, entry, history);
+      runCustomTools(run, entry, historyMessages);
       return { ok: true };
     }
 
-    customStore.stream(entry.id, history, {
+    customStore.stream(entry, historyMessages, {
       signal: run.controller.signal,
       onDelta: (chunk) => {
         if (run.finished || activeRun !== run) return;
@@ -517,7 +686,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     if (!prompt) return { ok: false, error: 'empty' };
     if (prompt.length > MAX_PROMPT) return { ok: false, error: 'too-long' };
 
-    if (ensureModel()) save();
+    ensureModel();
     const entry = resolveCustom(state.model);
     if (!entry) return { ok: false, error: 'no-model' };
 
@@ -530,6 +699,11 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     };
     state.messages.push(message);
     state.messages = state.messages.slice(-MAX_MESSAGES);
+    if (!state.title) {
+      state.title = cleanTitle(prompt);
+      state.titleSource = 'default';
+    }
+    state.inputDraft = '';
     save();
 
     return launchRun(entry, message.text);
@@ -541,6 +715,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     if (prompt.length > MAX_PROMPT) return { ok: false, error: 'too-long' };
     const run = activeRun;
     if (!run || run.finished) return send(prompt);
+    const conversationId = state.id;
     run.stopRequested = true;
     emit({ type: 'run-status', status: 'stopping' });
     try { run.controller.abort(); } catch {}
@@ -550,6 +725,10 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
         if (!run.finished && Date.now() - startedAt < 1000) return;
         clearInterval(timer);
         if (!run.finished) finishRun(run, { stopped: true });
+        if (state.id !== conversationId) {
+          resolve({ ok: false, error: 'conversation-not-found' });
+          return;
+        }
         resolve(send(prompt));
       }, 40);
     });
@@ -567,24 +746,148 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     return { ok: true };
   }
 
-  function newChat() {
+  function interruptActiveRun() {
     const run = activeRun;
-    if (run) {
-      run.finished = true;
-      clearTimeout(run.hardTimer);
-      try { run.controller.abort(); } catch {}
-      activeRun = null;
+    if (!run || run.finished) return;
+    run.stopRequested = true;
+    try { run.controller.abort(); } catch {}
+    finishRun(run, { stopped: true });
+  }
+
+  function newChat() {
+    interruptActiveRun();
+    if (!state.messages.length && !state.inputDraft) {
+      emitSnapshot();
+      return { ok: true, state: getState() };
     }
-    state.messages = [];
-    save();
+    state = createConversation(state);
+    history.conversations.push(state);
+    save({ touch: false });
     emitSnapshot();
     return { ok: true, state: getState() };
+  }
+
+  function switchConversation(id) {
+    const target = history.conversations.find((entry) => entry.id === id);
+    if (!target) return { ok: false, error: 'conversation-not-found' };
+    if (target !== state) {
+      interruptActiveRun();
+      state = target;
+      save({ touch: false });
+    }
+    emitSnapshot();
+    return { ok: true, state: getState() };
+  }
+
+  function renameConversation(id, title) {
+    const target = history.conversations.find((entry) => entry.id === id);
+    if (!target) return { ok: false, error: 'conversation-not-found' };
+    const value = typeof title === 'string' ? cleanTitle(title) : '';
+    if (!value) return { ok: false, error: 'invalid-title' };
+    target.title = value;
+    target.titleSource = 'manual';
+    save({ touch: false });
+    emitSnapshot();
+    return { ok: true, state: getState() };
+  }
+
+  function titleContext(conversation) {
+    const user = conversation.messages.find((message) => message.role === 'user' && message.text.trim());
+    const assistant = conversation.messages
+      .find((message) => message.role === 'assistant' && !message.error && message.text.trim());
+    return { user, assistant };
+  }
+
+  function applyTitle(conversation, value, source) {
+    const title = tidyTitle(value);
+    if (!title) return '';
+    conversation.title = title.slice(0, MAX_TITLE);
+    conversation.titleSource = source;
+    save({ touch: false });
+    emitSnapshot();
+    return conversation.title;
+  }
+
+  function generateTitle(conversation) {
+    const { user, assistant } = titleContext(conversation);
+    if (!user) return Promise.resolve('');
+    const prompt = titlePrompt(user.text, assistant ? assistant.text : '');
+    const custom = resolveCustom(conversation.model);
+    if (!custom || !customStore) return Promise.resolve('');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TITLE_TIMEOUT_MS);
+    return customStore.stream(
+      { ...custom, effort: '' },
+      [{ role: 'user', content: prompt }],
+      { signal: controller.signal, maxTokens: 1024 }
+    ).then((reply) => tidyTitle(reply || '')).catch(() => '').finally(() => clearTimeout(timer));
+  }
+
+  function maybeAutoTitle(conversation) {
+    if (shuttingDown || !conversation || conversation.titleSource !== 'default') return;
+    if (!history.conversations.includes(conversation)) return;
+    if (autoTitleTried.has(conversation.id) || titleJobs.has(conversation.id)) return;
+    const { user, assistant } = titleContext(conversation);
+    if (!user || !assistant) return;
+    autoTitleTried.add(conversation.id);
+    const job = generateTitle(conversation);
+    titleJobs.set(conversation.id, job);
+    job.then((value) => {
+      if (!value || conversation.titleSource !== 'default') return;
+      if (!history.conversations.includes(conversation)) return;
+      applyTitle(conversation, value, 'ai');
+    }).catch(() => {}).finally(() => titleJobs.delete(conversation.id));
+  }
+
+  async function suggestTitle(id) {
+    const conversation = history.conversations.find((entry) => entry.id === id);
+    if (!conversation) return { ok: false, error: 'conversation-not-found' };
+    if (!titleContext(conversation).user) return { ok: false, error: 'no-messages' };
+    if (titleJobs.has(id)) return { ok: false, error: 'title-busy' };
+    const previous = conversation.title;
+    const job = generateTitle(conversation);
+    titleJobs.set(id, job);
+    try {
+      const value = await job;
+      if (!value) return { ok: false, error: 'title-failed' };
+      if (!history.conversations.includes(conversation)) return { ok: false, error: 'conversation-not-found' };
+      if (conversation.title !== previous) return { ok: false, error: 'title-failed' };
+      const title = applyTitle(conversation, value, 'ai');
+      return title ? { ok: true, title, state: getState() } : { ok: false, error: 'title-failed' };
+    } finally {
+      titleJobs.delete(id);
+    }
+  }
+
+  function deleteConversation(id) {
+    const target = history.conversations.find((entry) => entry.id === id);
+    if (!target) return { ok: false, error: 'conversation-not-found' };
+    if (target === state) interruptActiveRun();
+    history.conversations = history.conversations.filter((entry) => entry !== target);
+    if (target === state) {
+      state = history.conversations.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0]
+        || createConversation(target);
+      if (!history.conversations.length) history.conversations.push(state);
+    }
+    save({ touch: false });
+    emitSnapshot();
+    return { ok: true, state: getState() };
+  }
+
+  function saveInputDraft(id, text) {
+    const target = history.conversations.find((entry) => entry.id === id);
+    if (!target) return { ok: false, error: 'conversation-not-found' };
+    if (typeof text !== 'string') return { ok: false, error: 'invalid-draft' };
+    const value = text.slice(0, MAX_PROMPT);
+    if (target.inputDraft === value) return { ok: true };
+    target.inputDraft = value;
+    return save({ touch: false }) ? { ok: true } : { ok: false, error: 'history-save-failed' };
   }
 
   function setModel(model) {
     if (activeRun && !activeRun.finished) return { ok: false, error: 'busy' };
     const value = String(model == null ? '' : model).trim().slice(0, 120);
-    if (!value || (value.startsWith('custom:') && !resolveCustom(value))) {
+    if (!value || !resolveCustom(value)) {
       return { ok: false, error: 'invalid-model' };
     }
     state.model = value;
@@ -607,7 +910,13 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     if (activeRun && !activeRun.finished) return { ok: false, error: 'busy' };
     const value = path.resolve(String(workspace == null ? '' : workspace));
     if (!isDirectory(value)) return { ok: false, error: 'invalid-workspace' };
-    state.workspace = value;
+    if (value === state.workspace) return { ok: true, state: getState() };
+    if (state.messages.length || state.inputDraft) {
+      state = createConversation({ ...state, workspace: value });
+      history.conversations.push(state);
+    } else {
+      state.workspace = value;
+    }
     save();
     emitSnapshot();
     return { ok: true, state: getState() };
@@ -621,16 +930,19 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
 
   function dispose() {
     shuttingDown = true;
-    if (activeRun) {
-      activeRun.finished = true;
-      clearTimeout(activeRun.hardTimer);
-      try { activeRun.controller.abort(); } catch {}
-      activeRun = null;
-    }
+    interruptActiveRun();
   }
+
+  if (history.needsSave) save({ touch: false });
 
   return {
     getState,
+    listConversations,
+    switchConversation,
+    renameConversation,
+    suggestTitle,
+    deleteConversation,
+    saveInputDraft,
     send,
     interject,
     stop,

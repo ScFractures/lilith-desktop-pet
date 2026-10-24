@@ -408,6 +408,30 @@ ipcMain.handle('custom-chat-interject', (_e, text) => {
 ipcMain.handle('custom-chat-stop', () => (customChat ? customChat.stop() : { ok: false }));
 ipcMain.handle('custom-chat-new', () => (customChat ? customChat.newChat() : { ok: false }));
 
+ipcMain.handle('custom-chat-list', (_e, query) => (
+  customChat ? customChat.listConversations(typeof query === 'string' ? query : '') : []
+));
+
+ipcMain.handle('custom-chat-switch', (_e, id) => (
+  customChat ? customChat.switchConversation(id) : { ok: false }
+));
+
+ipcMain.handle('custom-chat-rename', (_e, id, title) => (
+  customChat ? customChat.renameConversation(id, title) : { ok: false }
+));
+
+ipcMain.handle('custom-chat-suggest-title', (_e, id) => (
+  customChat ? customChat.suggestTitle(id) : { ok: false }
+));
+
+ipcMain.handle('custom-chat-delete', (_e, id) => (
+  customChat ? customChat.deleteConversation(id) : { ok: false }
+));
+
+ipcMain.handle('custom-chat-draft', (_e, id, text) => (
+  customChat ? customChat.saveInputDraft(id, text) : { ok: false }
+));
+
 ipcMain.handle('custom-chat-set-model', (_e, model) => {
   if (!customChat || typeof model !== 'string') return { ok: false, error: 'invalid-model' };
   return customChat.setModel(model);

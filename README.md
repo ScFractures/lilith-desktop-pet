@@ -75,9 +75,9 @@ If macOS blocks the app on first launch ("unidentified developer"), open System 
 
 - Drag the pet to move her; left alone, she walks around, idles, and occasionally talks.
 - Right-click the pet for the menu: size presets, 3D model, actions (pat, walk, spin, jump, greet, sleep), **Chat window**, **Model settings**, language, hide and quit. The tray menu offers the same chat and model settings entries.
-- **Chat window** opens a separate conversation window. Pick a saved model from the menu at the top, send with Enter, stop a reply while it streams, or type again to interject — the current reply stops and your new message is sent. Reasoning returned by the model is shown above the answer in full, and a single run can take up to 12 hours. The window remembers its size and position.
+- **Chat window** opens a separate conversation window. Pick a saved model from the menu at the top, send with Enter, stop a reply while it streams, or type again to interject — the current reply stops and your new message is sent. Reasoning returned by the model is shown above the answer in full, and a single run can take up to 12 hours. The window remembers its size and position. The history panel (toggle at the top-left) keeps every conversation with its own model, mode, workspace, messages and unsent draft: search across messages, switch, rename, delete, or press ✦ to generate a title with the model — titles are also created automatically after the first answer. Conversations are saved locally.
 - **Model settings** keeps several endpoints side by side. Choose **OpenAI compatible** or **Anthropic**; both can enable a reasoning effort (OpenAI sends `reasoning_effort` or uses the Responses API, Anthropic enables extended thinking). Use **Fetch models** to load the endpoint's model list together with each model's supported reasoning depths (Anthropic reads the Models API capabilities; OpenAI depths are inferred from model IDs), and unsupported levels are disabled in the menu. You can also type the model ID manually. Then test the connection and save. Example base URLs: `https://api.deepseek.com/v1`, `https://api.anthropic.com`, or your local server.
-- Custom models only chat by default. Edit a model and tick **Allow tool calls** to enable terminal and file tools for it in the chat window (`run_command`, `read_file`, `write_file`, `list_files`); calls appear as a collapsible group below the reply. Tools stay inside the **workspace** chosen in the chat window, and the **mode** menu sets permissions: **Read only** can view files and folders, **Read & write** can create and edit files but not run commands, and **Full access** can run terminal commands. Switching the mode or workspace keeps the current conversation.
+- Custom models only chat by default. Edit a model and tick **Allow tool calls** to enable terminal and file tools for it in the chat window (`run_command`, `read_file`, `write_file`, `list_files`); calls appear as a collapsible group below the reply. Tools stay inside the **workspace** chosen in the chat window, and the **mode** menu sets permissions: **Read only** can view files and folders, **Read & write** can create and edit files but not run commands, and **Full access** can run terminal commands. Switching the mode keeps the current conversation; choosing a different workspace starts a new one.
 - Switching the 3D model changes her local voice and persona. The model used by the chat window is chosen independently inside that window.
 - Everything is available in Chinese and English: switch with the **Language** submenu in the right-click (or tray) menu. The default follows your system language. The pet, chat window and model settings page all update immediately.
 - On macOS, **Avoid open windows** (right-click or tray menu, on by default) keeps her out of other apps' windows: walks stay within uncovered stretches of the screen bottom, she steps aside when a window covers her, and she hides while the whole bottom edge is occupied.
@@ -88,7 +88,7 @@ Settings, chat history and API keys stay on your computer in the OS application-
 
 - `pet-state.json` — pet position, size, selected 3D model, language and chat-window bounds
 - `custom-models.json` — custom endpoints and their API keys (stored as plain text locally, never uploaded)
-- `custom-chat.json` — conversation history
+- `custom-chat.json` — all conversations, their titles and unsent drafts
 
 Messages go only to the Base URL of the custom model you selected. If you used an older build with `ai-config.json`, its endpoint is imported into `custom-models.json` on first launch.
 
@@ -96,7 +96,7 @@ Messages go only to the Base URL of the custom model you selected. If you used a
 
 Three models are included: the original Lilith (`LilithPet/assets/lilith.glb`), DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`) and Hatsune Miku (`LilithPet/assets/miku.glb`, source texture in `Miku/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
 
-Each model has its own standalone voice and AI persona: Lilith is gentle, poetic and playful; DeepSeek M has a calm, concise, analytical persona with a dry sense of humor; Miku is bright, musical and a little mischievous. Switching models swaps the AI system prompt and all local lines, and clears the current chat history.
+Each model has its own standalone voice and AI persona: Lilith is gentle, poetic and playful; DeepSeek M has a calm, concise, analytical persona with a dry sense of humor; Miku is bright, musical and a little mischievous. Switching models swaps the AI system prompt and all local lines; chat conversations stay available in the history panel.
 
 To regenerate a GLB from its source file with Blender 4.x or newer:
 
