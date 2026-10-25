@@ -4,6 +4,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { createCustomChat } = require('../custom-chat');
+const { buildHistory } = require('../custom-models');
+const { extractAttachment } = require('../attachments');
 
 function fixture(t, initial, customStore) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilith-custom-history-test-'));
@@ -38,7 +40,7 @@ function mockStore({ slowCalls = 0 } = {}) {
     titleRequests,
     list: () => [entry],
     get: (id) => id === 'mock' ? entry : null,
-    buildHistory: (messages) => messages.filter((m) => m.text).map((m) => ({ role: m.role, content: m.text })),
+    buildHistory,
     stream: (_target, history, { onDelta, onReasoning, signal, maxTokens } = {}) => {
       if (isTitleRequest(history)) {
         titleRequests.push({ history, maxTokens });
@@ -216,4 +218,161 @@ test('switching while busy aborts and saves partial reply to the correct convers
   assert.equal(stopped.conversationId, second);
   f.restart();
   assert.equal(f.chat.getState().messages.at(-1).interrupted, true);
+});
+
+function makeZip(files) {
+  const local = [];
+  const central = [];
+  let offset = 0;
+  for (const [name, content] of Object.entries(files)) {
+    const nameBuf = Buffer.from(name);
+    const data = Buffer.from(content);
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(0x04034b50, 0);
+    header.writeUInt16LE(20, 4);
+    header.writeUInt16LE(nameBuf.length, 26);
+    local.push(header, nameBuf, data);
+
+    const entry = Buffer.alloc(46);
+    entry.writeUInt32LE(0x02014b50, 0);
+    entry.writeUInt16LE(20, 4);
+    entry.writeUInt16LE(20, 6);
+    entry.writeUInt32LE(data.length, 20);
+    entry.writeUInt32LE(data.length, 24);
+    entry.writeUInt16LE(nameBuf.length, 28);
+    entry.writeUInt32LE(offset, 42);
+    central.push(entry, nameBuf);
+    offset += 30 + nameBuf.length + data.length;
+  }
+  const directory = Buffer.concat(central);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(Object.keys(files).length, 8);
+  eocd.writeUInt16LE(Object.keys(files).length, 10);
+  eocd.writeUInt32LE(directory.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...local, directory, eocd]);
+}
+
+const PDF_BASE64 = 'JVBERi0xLjcKJcK1wrYKCjEgMCBvYmoKPDwvVHlwZS9DYXRhbG9nL1BhZ2VzIDIgMCBSPj4KZW5kb2JqCgoyIDAgb2JqCjw8L1R5cGUvUGFnZXMvQ291bnQgMS9LaWRzWzQgMCBSXT4+CmVuZG9iagoKMyAwIG9iago8PC9Gb250PDwvaGVsdiA1IDAgUj4+Pj4KZW5kb2JqCgo0IDAgb2JqCjw8L1R5cGUvUGFnZS9NZWRpYUJveFswIDAgNTk1IDg0Ml0vUm90YXRlIDAvUmVzb3VyY2VzIDMgMCBSL1BhcmVudCAyIDAgUi9Db250ZW50c1s2IDAgUl0+PgplbmRvYmoKCjUgMCBvYmoKPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhL0VuY29kaW5nL1dpbkFuc2lFbmNvZGluZz4+CmVuZG9iagoKNiAwIG9iago8PC9MZW5ndGggODcvRmlsdGVyL0ZsYXRlRGVjb2RlPj4Kc3RyZWFtCnicDcghDoAwDAVQ31P0BrSj658gCBIMjqSO4BhBgMBwfpbnHr00BSlLo4zEgHA81F31/liV4+RtyGJmnsQVBnP13osfnr3CkrTJKLBxj4XmoJV+JQgS3QplbmRzdHJlYW0KZW5kb2JqCgp4cmVmCjAgNwowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMTYgMDAwMDAgbiAKMDAwMDAwMDA2MiAwMDAwMCBuIAowMDAwMDAwMTE0IDAwMDAwIG4gCjAwMDAwMDAxNTUgMDAwMDAgbiAKMDAwMDAwMDI2MiAwMDAwMCBuIAowMDAwMDAwMzUxIDAwMDAwIG4gCgp0cmFpbGVyCjw8L1NpemUgNy9Sb290IDEgMCBSL0lEWzxDM0JCQzM4OUMzOUY0MjJEQzI4QkMyOEU2RkMzQTdDMz48NTBDQUREMDZFRjkyOEU3RUE3RTYwRkU1QTAyMjkwM0Y+XT4+CnN0YXJ0eHJlZgo1MDYKJSVFT0YK';
+
+test('extracts text, docx and PDF attachments without a 50k text limit', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilith-extract-test-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const textPath = path.join(dir, 'notes.md');
+  fs.writeFileSync(textPath, '# hello\nworld');
+  const text = await extractAttachment(textPath);
+  assert.equal(text.kind, 'text');
+  assert.equal(text.content, '# hello\nworld');
+  assert.equal(text.chars, 13);
+
+  const longPath = path.join(dir, 'long.txt');
+  fs.writeFileSync(longPath, 'x'.repeat(120000));
+  const long = await extractAttachment(longPath);
+  assert.equal(long.chars, 120000);
+  assert.equal(long.truncated, false);
+
+  const docxPath = path.join(dir, 'report.docx');
+  const documentXml = '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    + '<w:body><w:p><w:r><w:t>Hello</w:t></w:r></w:p><w:p><w:r><w:t>World</w:t></w:r></w:p></w:body></w:document>';
+  fs.writeFileSync(docxPath, makeZip({ 'word/document.xml': documentXml }));
+  const docx = await extractAttachment(docxPath);
+  assert.equal(docx.kind, 'docx');
+  assert.equal(docx.content, 'Hello\nWorld');
+
+  const pdfPath = path.join(dir, 'sample.pdf');
+  fs.writeFileSync(pdfPath, Buffer.from(PDF_BASE64, 'base64'));
+  const pdf = await extractAttachment(pdfPath);
+  assert.equal(pdf.kind, 'pdf');
+  assert.equal(pdf.pages, 1);
+  assert.match(pdf.content, /PDF attachment text/);
+
+  const imagePath = path.join(dir, 'photo.png');
+  fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]));
+  const image = await extractAttachment(imagePath);
+  assert.equal(image.kind, 'image');
+  assert.equal(image.content, '');
+  assert.match(image.note, /Image/);
+});
+
+test('staged attachments are sent by id, kept in history and cleared after sending', async (t) => {
+  const store = mockStore();
+  const f = fixture(t, undefined, store);
+  assert.equal(f.chat.setModel('custom:mock').ok, true);
+
+  assert.equal(f.chat.send('', []).error, 'empty');
+  assert.equal(f.chat.send('hi', ['missing-id']).error, 'attachment-expired');
+
+  const notesPath = path.join(f.dir, 'notes.md');
+  const notes = '# hello\nworld';
+  fs.writeFileSync(notesPath, notes);
+  const staged = await f.chat.stageFiles([notesPath]);
+  assert.equal(staged.ok, true);
+  assert.equal(staged.errors.length, 0);
+  assert.equal(staged.files.length, 1);
+  const [attached] = staged.files;
+  assert.equal(attached.name, 'notes.md');
+  assert.equal(attached.kind, 'text');
+  assert.equal(attached.chars, notes.length);
+  assert.equal(attached.size, notes.length);
+  assert.ok(attached.id);
+
+  const missing = await f.chat.stageFiles([path.join(f.dir, 'nope.bin')]);
+  assert.equal(missing.errors[0].code, 'unreadable-file');
+  const directory = await f.chat.stageFiles([f.dir]);
+  assert.equal(directory.errors[0].code, 'not-a-file');
+
+  assert.equal(f.chat.send('看看这个', [attached.id]).ok, true);
+  await waitIdle(f.chat);
+
+  assert.deepEqual(store.requests[0], [{
+    role: 'user',
+    content: [
+      '看看这个',
+      '',
+      'Attached files:',
+      '',
+      '--- file 1: notes.md (text, 13 B) ---',
+      `Path: ${notesPath}`,
+      '',
+      notes,
+      '--- end file: notes.md ---',
+    ].join('\n'),
+  }]);
+  const state = f.chat.getState();
+  assert.deepEqual(state.messages[0].files, [{ name: 'notes.md', size: 13, kind: 'text', chars: 13 }]);
+  assert.equal(state.messages[0].text, '看看这个');
+  assert.deepEqual(state.attachments, []);
+  assert.equal(f.chat.listConversations('notes.md').length, 1);
+
+  const extras = Array.from({ length: 10 }, (_, index) => {
+    const file = path.join(f.dir, `extra-${index}.txt`);
+    fs.writeFileSync(file, `file ${index}`);
+    return file;
+  });
+  const full = await f.chat.stageFiles(extras);
+  assert.equal(full.files.length, 10);
+  const overflow = await f.chat.stageFiles([path.join(f.dir, 'extra-11.txt')]);
+  assert.equal(overflow.errors[0].code, 'too-many-files');
+
+  const second = f.chat.newChat().state.conversationId;
+  assert.deepEqual(f.chat.getState().attachments, []);
+
+  const csvPath = path.join(f.dir, 'data.csv');
+  fs.writeFileSync(csvPath, 'a,b\n1,2');
+  const csv = await f.chat.stageFiles([csvPath]);
+  const removed = f.chat.unstageFile(csv.files[0].id);
+  assert.deepEqual(removed.files, []);
+  const csvAgain = await f.chat.stageFiles([csvPath]);
+  assert.equal(f.chat.send('', [csvAgain.files[0].id]).ok, true);
+  await waitIdle(f.chat);
+  const attachmentsOnly = f.chat.getState();
+  assert.equal(attachmentsOnly.conversationId, second);
+  assert.equal(attachmentsOnly.messages[0].text, '');
+  assert.deepEqual(attachmentsOnly.messages[0].files, [{ name: 'data.csv', size: 7, kind: 'text', chars: 7 }]);
+  assert.equal(f.chat.listConversations('data.csv').length, 1);
+
+  f.restart();
+  assert.deepEqual(f.chat.getState().messages[0].files, [{ name: 'data.csv', size: 7, kind: 'text', chars: 7 }]);
 });

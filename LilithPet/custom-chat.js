@@ -5,9 +5,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const customTools = require('./custom-tools');
+const { extractAttachment, kindByExtension } = require('./attachments');
 
 const MAX_MESSAGES = 140;
 const MAX_PROMPT = 20000;
+const MAX_FILES = 10;
+const MAX_FILE_CHARS = 300000;
+const MAX_NOTE = 500;
 const MAX_TITLE = 80;
 const CHECKPOINT_MS = 1200;
 const MAX_TOOL_TEXT = 4000;
@@ -160,6 +164,55 @@ function tidyTitle(value) {
     .slice(0, 40);
 }
 
+function cleanFileName(value) {
+  const name = String(value || '').split(/[\\/]/).pop().replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim();
+  return name.slice(0, 120) || 'file';
+}
+
+function normalizeFile(file) {
+  if (!file || typeof file !== 'object') return null;
+  const content = typeof file.content === 'string' ? file.content.slice(0, MAX_FILE_CHARS) : '';
+  const name = cleanFileName(file.name || file.path);
+  const kind = typeof file.kind === 'string' && file.kind
+    ? file.kind.slice(0, 24)
+    : (content ? 'text' : kindByExtension(name));
+  const entry = {
+    name,
+    size: Number.isFinite(file.size) && file.size >= 0 ? Math.round(file.size) : content.length,
+    kind,
+    content,
+    chars: content.length,
+    truncated: file.truncated === true,
+  };
+  if (typeof file.path === 'string' && file.path) entry.path = file.path.slice(0, 4096);
+  if (typeof file.note === 'string' && file.note.trim()) entry.note = file.note.slice(0, MAX_NOTE);
+  if (Number.isFinite(file.pages) && file.pages > 0) entry.pages = Math.round(file.pages);
+  return entry;
+}
+
+function publicFile(file) {
+  if (!file || typeof file !== 'object') return null;
+  const out = {
+    name: cleanFileName(file.name || file.path),
+    size: Number.isFinite(file.size) && file.size >= 0 ? Math.round(file.size) : 0,
+    kind: typeof file.kind === 'string' && file.kind ? file.kind.slice(0, 24) : 'binary',
+  };
+  if (Number.isFinite(file.chars) && file.chars > 0) out.chars = Math.round(file.chars);
+  if (file.truncated === true) out.truncated = true;
+  if (typeof file.note === 'string' && file.note.trim()) out.note = file.note.slice(0, MAX_NOTE);
+  if (Number.isFinite(file.pages) && file.pages > 0) out.pages = Math.round(file.pages);
+  return out;
+}
+
+function normalizeFiles(input) {
+  if (!Array.isArray(input)) return [];
+  return input.map(normalizeFile).filter(Boolean).slice(0, MAX_FILES);
+}
+
+function fileNames(message) {
+  return Array.isArray(message.files) ? message.files.map((file) => file.name).join(', ') : '';
+}
+
 function normalizeMessages(input) {
   if (!Array.isArray(input)) return [];
   const out = [];
@@ -172,6 +225,10 @@ function normalizeMessages(input) {
       at: Number.isFinite(message.at) ? message.at : Date.now(),
       tools: Array.isArray(message.tools) ? message.tools.map(normalizeTool).filter(Boolean) : [],
     };
+    if (message.role === 'user') {
+      const files = normalizeFiles(message.files);
+      if (files.length) entry.files = files;
+    }
     if (message.role === 'assistant') {
       if (Number.isFinite(message.durationMs)) entry.durationMs = message.durationMs;
       if (typeof message.model === 'string') entry.model = message.model;
@@ -308,6 +365,81 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     }
   }
 
+  function publicMessage(message) {
+    const copy = {
+      ...message,
+      tools: message.tools.map((tool) => ({ ...tool })),
+    };
+    delete copy.files;
+    if (Array.isArray(message.files) && message.files.length) {
+      copy.files = message.files.map(publicFile).filter(Boolean);
+    }
+    return copy;
+  }
+
+  const staged = new Map();
+
+  function stagedList() {
+    return [...staged.values()].map((file) => ({ ...publicFile(file), id: file.id }));
+  }
+
+  let stagingQueue = Promise.resolve();
+
+  async function doStageFiles(paths) {
+    const list = Array.isArray(paths) ? paths.filter((value) => typeof value === 'string' && value) : [];
+    if (!list.length) return { ok: false, error: 'empty' };
+    const errors = [];
+    for (const filePath of list) {
+      if (staged.size >= MAX_FILES) {
+        errors.push({ name: path.basename(filePath), code: 'too-many-files' });
+        break;
+      }
+      const existing = [...staged.values()].find((file) => file.path === filePath);
+      if (existing) continue;
+      let extracted;
+      try {
+        extracted = await extractAttachment(filePath, { maxChars: MAX_FILE_CHARS });
+      } catch (error) {
+        errors.push({
+          name: path.basename(filePath),
+          code: error && error.message === 'not-a-file' ? 'not-a-file' : 'unreadable-file',
+        });
+        continue;
+      }
+      const file = { ...extracted, id: crypto.randomUUID() };
+      staged.set(file.id, file);
+    }
+    return { ok: true, files: stagedList(), errors };
+  }
+
+  function stageFiles(paths) {
+    const job = stagingQueue.then(() => doStageFiles(paths));
+    stagingQueue = job.catch(() => {});
+    return job;
+  }
+
+  function unstageFile(id) {
+    if (typeof id === 'string' && id) staged.delete(id);
+    return { ok: true, files: stagedList() };
+  }
+
+  function clearStaged() {
+    staged.clear();
+  }
+
+  function resolveStaged(ids) {
+    if (ids == null) return { files: [] };
+    if (!Array.isArray(ids)) return { error: 'invalid-file' };
+    if (ids.length > MAX_FILES) return { error: 'too-many-files' };
+    const files = [];
+    for (const id of ids) {
+      const file = staged.get(String(id));
+      if (!file) return { error: 'attachment-expired' };
+      files.push(file);
+    }
+    return { files };
+  }
+
   function modelEntries() {
     return customList().map((entry) => ({
       value: `custom:${entry.id}`,
@@ -333,15 +465,18 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     return history.conversations
       .filter((conversation) => !search || [conversation.title, conversation.model, conversation.workspace]
         .some((value) => String(value || '').toLocaleLowerCase().includes(search))
-        || conversation.messages.some((message) => message.text.toLocaleLowerCase().includes(search)))
+        || conversation.messages.some((message) => message.text.toLocaleLowerCase().includes(search)
+          || (message.files || []).some((file) => file.name.toLocaleLowerCase().includes(search))))
       .slice().sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt)
       .map((conversation) => {
         const custom = resolveCustom(conversation.model);
-        const last = [...conversation.messages].reverse().find((message) => message.text.trim() || message.errorText);
+        const last = [...conversation.messages].reverse()
+          .find((message) => message.text.trim() || message.errorText || (message.files || []).length);
+        const fallback = last && !last.text.trim() ? fileNames(last) : '';
         return {
           id: conversation.id,
           title: conversation.title,
-          preview: String(last?.text || last?.errorText || '').replace(/\s+/g, ' ').slice(0, 120),
+          preview: String(last?.text || last?.errorText || fallback || '').replace(/\s+/g, ' ').slice(0, 120),
           model: conversation.model,
           modelLabel: custom ? custom.name : conversation.model,
           workspace: conversation.workspace,
@@ -368,10 +503,8 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
       workspace: state.workspace,
       modes: MODES.map(({ key, label, hint }) => ({ key, label, hint })),
       tools: !!selected && selected.tools === true,
-      messages: state.messages.map((message) => ({
-        ...message,
-        tools: (message.tools || []).map((tool) => ({ ...tool })),
-      })),
+      attachments: stagedList(),
+      messages: state.messages.map(publicMessage),
       busy: !!activeRun && !activeRun.finished,
       draft: activeRun && !activeRun.finished ? {
         text: activeRun.text,
@@ -680,10 +813,13 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     return { ok: true };
   }
 
-  function send(text) {
+  function send(text, attachmentIds) {
     if (activeRun && !activeRun.finished) return { ok: false, error: 'busy' };
     const prompt = String(text == null ? '' : text).trim();
-    if (!prompt) return { ok: false, error: 'empty' };
+    const resolved = resolveStaged(attachmentIds);
+    if (resolved.error) return { ok: false, error: resolved.error };
+    const files = resolved.files;
+    if (!prompt && !files.length) return { ok: false, error: 'empty' };
     if (prompt.length > MAX_PROMPT) return { ok: false, error: 'too-long' };
 
     ensureModel();
@@ -697,24 +833,29 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
       at: Date.now(),
       tools: [],
     };
+    const stored = normalizeFiles(files);
+    if (stored.length) message.files = stored;
     state.messages.push(message);
     state.messages = state.messages.slice(-MAX_MESSAGES);
     if (!state.title) {
-      state.title = cleanTitle(prompt);
+      state.title = cleanTitle(prompt || fileNames(message));
       state.titleSource = 'default';
     }
     state.inputDraft = '';
+    for (const file of files) staged.delete(file.id);
     save();
 
     return launchRun(entry, message.text);
   }
 
-  function interject(text) {
+  function interject(text, attachmentIds) {
     const prompt = String(text == null ? '' : text).trim();
-    if (!prompt) return { ok: false, error: 'empty' };
+    const resolved = resolveStaged(attachmentIds);
+    if (resolved.error) return { ok: false, error: resolved.error };
+    if (!prompt && !resolved.files.length) return { ok: false, error: 'empty' };
     if (prompt.length > MAX_PROMPT) return { ok: false, error: 'too-long' };
     const run = activeRun;
-    if (!run || run.finished) return send(prompt);
+    if (!run || run.finished) return send(prompt, attachmentIds);
     const conversationId = state.id;
     run.stopRequested = true;
     emit({ type: 'run-status', status: 'stopping' });
@@ -729,7 +870,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
           resolve({ ok: false, error: 'conversation-not-found' });
           return;
         }
-        resolve(send(prompt));
+        resolve(send(prompt, attachmentIds));
       }, 40);
     });
   }
@@ -756,6 +897,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
 
   function newChat() {
     interruptActiveRun();
+    clearStaged();
     if (!state.messages.length && !state.inputDraft) {
       emitSnapshot();
       return { ok: true, state: getState() };
@@ -772,6 +914,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     if (!target) return { ok: false, error: 'conversation-not-found' };
     if (target !== state) {
       interruptActiveRun();
+      clearStaged();
       state = target;
       save({ touch: false });
     }
@@ -862,7 +1005,10 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
   function deleteConversation(id) {
     const target = history.conversations.find((entry) => entry.id === id);
     if (!target) return { ok: false, error: 'conversation-not-found' };
-    if (target === state) interruptActiveRun();
+    if (target === state) {
+      interruptActiveRun();
+      clearStaged();
+    }
     history.conversations = history.conversations.filter((entry) => entry !== target);
     if (target === state) {
       state = history.conversations.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0]
@@ -911,6 +1057,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     const value = path.resolve(String(workspace == null ? '' : workspace));
     if (!isDirectory(value)) return { ok: false, error: 'invalid-workspace' };
     if (value === state.workspace) return { ok: true, state: getState() };
+    clearStaged();
     if (state.messages.length || state.inputDraft) {
       state = createConversation({ ...state, workspace: value });
       history.conversations.push(state);
@@ -930,6 +1077,7 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
 
   function dispose() {
     shuttingDown = true;
+    clearStaged();
     interruptActiveRun();
   }
 
@@ -943,6 +1091,9 @@ function createCustomChat({ stateFile, customStore, onEvent }) {
     suggestTitle,
     deleteConversation,
     saveInputDraft,
+    stageFiles,
+    unstageFile,
+    clearStaged,
     send,
     interject,
     stop,

@@ -1438,6 +1438,40 @@ async function requestToolTurn(entry, conversation, options = {}) {
   return { text: full, reasoning, toolCalls, apiBlocks: null };
 }
 
+function formatBytes(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function attachmentPrompt(files) {
+  const list = Array.isArray(files) ? files : [];
+  const blocks = [];
+  list.forEach((file, index) => {
+    if (!file || typeof file.name !== 'string') return;
+    const meta = [file.kind || 'file', formatBytes(file.size)];
+    if (Number.isFinite(file.pages) && file.pages > 0) meta.push(`${file.pages} pages`);
+    const lines = [`--- file ${index + 1}: ${file.name} (${meta.join(', ')}) ---`];
+    if (typeof file.path === 'string' && file.path) lines.push(`Path: ${file.path}`);
+    if (typeof file.note === 'string' && file.note) lines.push(`Note: ${file.note}`);
+    if (typeof file.content === 'string' && file.content) lines.push('', file.content);
+    else lines.push('', '(No local text preview is available for this file.)');
+    lines.push(`--- end file: ${file.name} ---`);
+    blocks.push(lines.join('\n'));
+  });
+  return blocks.length ? `Attached files:\n\n${blocks.join('\n\n')}` : '';
+}
+
+function messagePrompt(message) {
+  if (!message) return '';
+  const text = typeof message.text === 'string' ? message.text : '';
+  const files = attachmentPrompt(message.files);
+  if (!files) return text;
+  return text ? `${text}\n\n${files}` : files;
+}
+
 function buildHistory(messages) {
   const source = Array.isArray(messages) ? messages : [];
   const picked = [];
@@ -1446,9 +1480,13 @@ function buildHistory(messages) {
     const message = source[index];
     if (!message || (message.role !== 'user' && message.role !== 'assistant')) continue;
     if (message.error === true) continue;
-    const content = typeof message.text === 'string' ? message.text.trim() : '';
+    const content = messagePrompt(message).trim();
     if (!content) continue;
-    if (chars + content.length > HISTORY_CHARS) break;
+    if (chars + content.length > HISTORY_CHARS) {
+      // Keep the newest message even when a single attachment exceeds the window.
+      if (!picked.length) picked.unshift({ role: message.role, content: content.slice(0, HISTORY_CHARS) });
+      break;
+    }
     chars += content.length;
     picked.unshift({ role: message.role, content });
   }

@@ -15,5 +15,8 @@
   },
   "allowScripts": {
     "electron@38.8.6": true
+  },
+  "dependencies": {
+    "pdfjs-dist": "^3.11.174"
   }
 }

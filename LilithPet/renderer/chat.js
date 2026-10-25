@@ -51,6 +51,18 @@
       hintTypes: 'OpenAI · Anthropic · Reasoning',
       hintEnter: 'Enter 发送',
       placeholder: '和莉莉丝说点什么…',
+      attachFiles: '添加文件',
+      removeFile: '移除文件',
+      attachTooMany: '最多添加 {n} 个文件。',
+      attachReadFailed: '无法读取「{name}」。',
+      attachNotFile: '「{name}」不是文件。',
+      attachExpired: '附件已失效，请重新添加。',
+      attachAdded: '已添加 {n} 个文件。',
+      filePages: '{n} 页',
+      fileTruncated: '文本预览已截断',
+      fileTooMany: '附件数量超过上限。',
+      invalidFile: '附件格式无效。',
+      emptyFile: '附件是空文件。',
       send: '发送',
       interject: '插嘴',
       stop: '停止',
@@ -131,6 +143,18 @@
       hintTypes: 'OpenAI · Anthropic · Reasoning',
       hintEnter: 'Enter to send',
       placeholder: 'Say something to Lilith…',
+      attachFiles: 'Attach files',
+      removeFile: 'Remove file',
+      attachTooMany: 'You can attach up to {n} files.',
+      attachReadFailed: 'Could not read “{name}”.',
+      attachNotFile: '“{name}” is not a file.',
+      attachExpired: 'The attachment expired. Add it again.',
+      attachAdded: 'Attached {n} file(s).',
+      filePages: '{n} pages',
+      fileTruncated: 'Text preview truncated',
+      fileTooMany: 'Too many attachments.',
+      invalidFile: 'Invalid attachment.',
+      emptyFile: 'The attachment is empty.',
       send: 'Send',
       interject: 'Interject',
       stop: 'Stop',
@@ -202,6 +226,8 @@
   const sendBtn = document.getElementById('send');
   const sendLabel = sendBtn.querySelector('[data-i18n]');
   const enterHintEl = document.querySelector('.composer-foot [data-i18n="enterHint"]');
+  const attachBtn = document.getElementById('attach');
+  const attachmentList = document.getElementById('attachment-list');
 
   let lang = 'zh';
   let state = {
@@ -240,6 +266,9 @@
   const inputDrafts = new Map();
   let inputDraftTimer = null;
   let inputDraftWrite = Promise.resolve();
+  const MAX_FILES = 10;
+  let pendingFiles = [];
+  let attaching = false;
 
   const t = (key) => (LABELS[lang] && LABELS[lang][key]) || LABELS.zh[key] || key;
   const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_m, k) => (vars && k in vars ? vars[k] : `{${k}}`));
@@ -287,6 +316,129 @@
     minimizeBtn.title = t('minimize');
     closeBtn.title = t('close');
     input.placeholder = t('placeholder');
+    attachBtn.title = t('attachFiles');
+    attachBtn.setAttribute('aria-label', t('attachFiles'));
+  }
+
+  function formatFileSize(bytes) {
+    const n = Number(bytes);
+    if (!Number.isFinite(n) || n <= 0) return '0 B';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) {
+      const kb = n / 1024;
+      return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
+    }
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function fileTitle(file) {
+    const meta = [String(file.kind || 'file').toUpperCase(), formatFileSize(file.size)];
+    if (Number.isFinite(file.pages) && file.pages > 0) meta.push(fill(t('filePages'), { n: file.pages }));
+    const lines = [file.name, meta.join(' · ')];
+    if (file.truncated) lines.push(t('fileTruncated'));
+    if (file.note) lines.push(file.note);
+    return lines.join('\n');
+  }
+
+  function fileBadge(file) {
+    return String(file.kind || 'file').toUpperCase().slice(0, 5);
+  }
+
+  function makeFileChip(file, { removable = false, index = -1 } = {}) {
+    const chip = document.createElement('span');
+    chip.className = removable ? 'attachment-chip' : 'bubble-file';
+    chip.title = fileTitle(file);
+    const kind = document.createElement('span');
+    kind.className = removable ? 'attachment-kind' : 'bubble-file-kind';
+    kind.textContent = fileBadge(file);
+    const name = document.createElement('span');
+    name.className = removable ? 'attachment-name' : 'bubble-file-name';
+    name.textContent = file.name;
+    const size = document.createElement('span');
+    size.className = removable ? 'attachment-size' : 'bubble-file-size';
+    size.textContent = formatFileSize(file.size);
+    chip.append(kind, name, size);
+    if (removable) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'attachment-remove';
+      remove.textContent = '×';
+      remove.title = t('removeFile');
+      remove.setAttribute('aria-label', `${t('removeFile')}: ${file.name}`);
+      remove.addEventListener('click', () => removeAttachmentAt(index));
+      chip.appendChild(remove);
+    }
+    return chip;
+  }
+
+  function renderAttachments() {
+    attachmentList.textContent = '';
+    attachmentList.hidden = !pendingFiles.length;
+    pendingFiles.forEach((file, index) => {
+      attachmentList.appendChild(makeFileChip(file, { removable: true, index }));
+    });
+    attachBtn.disabled = attaching || changingConversation || pendingFiles.length >= MAX_FILES;
+    resizeInput();
+  }
+
+  function clearAttachments() {
+    if (!pendingFiles.length) return;
+    pendingFiles = [];
+    renderAttachments();
+  }
+
+  async function removeAttachmentAt(index) {
+    const file = pendingFiles[index];
+    if (!file) return;
+    pendingFiles.splice(index, 1);
+    renderAttachments();
+    if (!file.id) return;
+    try {
+      const result = await window.lilithChat.removeAttachment(file.id);
+      if (result && Array.isArray(result.files)) {
+        pendingFiles = result.files;
+        renderAttachments();
+      }
+    } catch {}
+  }
+
+  function attachmentErrorText(error) {
+    if (!error) return t('invalidFile');
+    switch (error.code) {
+      case 'too-many-files': return fill(t('attachTooMany'), { n: MAX_FILES });
+      case 'not-a-file': return fill(t('attachNotFile'), { name: error.name || '' });
+      case 'unreadable-file': return fill(t('attachReadFailed'), { name: error.name || '' });
+      default: return fill(t('requestFailed'), { error: error.code || t('invalidFile') });
+    }
+  }
+
+  async function chooseAttachments() {
+    if (attachBtn.disabled || attaching) return;
+    const before = pendingFiles.length;
+    let firstError = null;
+    attaching = true;
+    attachBtn.disabled = true;
+    try {
+      let result;
+      try {
+        result = await window.lilithChat.attachFiles();
+      } catch (error) {
+        setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
+        return;
+      }
+      if (!result || result.ok === false) {
+        if (result && result.error !== 'canceled') setStatus(sendErrorText(result.error), 'error');
+        return;
+      }
+      pendingFiles = Array.isArray(result.files) ? result.files : pendingFiles;
+      const errors = Array.isArray(result.errors) ? result.errors : [];
+      if (errors.length) firstError = attachmentErrorText(errors[0]);
+    } finally {
+      attaching = false;
+      renderAttachments();
+    }
+    if (firstError) setStatus(firstError, 'error');
+    else if (pendingFiles.length > before) setStatus(fill(t('attachAdded'), { n: pendingFiles.length - before }), 'transient');
   }
 
   function setLang(nextLang) {
@@ -664,10 +816,22 @@
     const row = document.createElement('div');
     row.className = `msg ${message.role}`;
     if (message.role === 'user') {
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.textContent = message.text;
-      row.appendChild(bubble);
+      const stack = document.createElement('div');
+      stack.className = 'user-stack';
+      if (message.text) {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = message.text;
+        stack.appendChild(bubble);
+      }
+      const files = Array.isArray(message.files) ? message.files : [];
+      if (files.length) {
+        const list = document.createElement('div');
+        list.className = 'bubble-files';
+        files.forEach((file) => list.appendChild(makeFileChip(file)));
+        stack.appendChild(list);
+      }
+      row.appendChild(stack);
       return row;
     }
 
@@ -861,7 +1025,8 @@
     } else if (/^(就绪|Ready|还没有添加模型|No models yet)$/.test(statusText.textContent || '')) {
       setStatus(t('ready'));
     }
-    sendBtn.disabled = changingConversation || !models || !input.value.trim();
+    attachBtn.disabled = attaching || changingConversation || pendingFiles.length >= MAX_FILES;
+    sendBtn.disabled = changingConversation || !models || (!input.value.trim() && !pendingFiles.length);
     sendBtn.classList.toggle('interjecting', busy);
     sendLabel.textContent = busy ? t('interject') : t('send');
     enterHintEl.textContent = busy ? t('interjectHint') : t('enterHint');
@@ -892,10 +1057,13 @@
     if (changed) {
       input.value = inputDrafts.has(state.conversationId) ? inputDrafts.get(state.conversationId) : state.inputDraft;
       inputDrafts.set(state.conversationId, input.value);
+      pendingFiles = [];
       resizeInput();
       forceScroll = true;
       setStatus(t('ready'));
     }
+    if (Array.isArray(next.attachments)) pendingFiles = next.attachments;
+    renderAttachments();
     renderModelOptions(state.modelEntries, state.model);
     renderModeOptions(state.modes, state.mode);
     renderAll();
@@ -1008,7 +1176,7 @@
   function resizeInput() {
     input.style.height = 'auto';
     input.style.height = `${Math.min(150, input.scrollHeight)}px`;
-    sendBtn.disabled = changingConversation || !hasModel() || !input.value.trim();
+    sendBtn.disabled = changingConversation || !hasModel() || (!input.value.trim() && !pendingFiles.length);
   }
 
   function sendErrorText(code) {
@@ -1024,6 +1192,10 @@
       case 'title-failed': return t('titleFailed');
       case 'no-messages': return t('titleFailed');
       case 'history-save-failed': return t('historySaveFailed');
+      case 'too-many-files': return t('fileTooMany');
+      case 'attachment-expired': return t('attachExpired');
+      case 'invalid-file': return t('invalidFile');
+      case 'empty-file': return t('emptyFile');
       default: return fill(t('requestFailed'), { error: code || 'unknown' });
     }
   }
@@ -1031,20 +1203,23 @@
   async function submit() {
     if (submitting || changingConversation || !hasModel()) return;
     const text = input.value.trim();
-    if (!text) return;
+    if (!text && !pendingFiles.length) return;
+    const files = pendingFiles.map((file) => file.id).filter(Boolean);
     const interject = !!state.busy;
     submitting = true;
     try {
       await flushInputDraft();
       const result = interject
-        ? await window.lilithChat.interject(text)
-        : await window.lilithChat.send(text);
+        ? await window.lilithChat.interject(text, files)
+        : await window.lilithChat.send(text, files);
       if (!result || !result.ok) {
+        if (result && result.error === 'attachment-expired') clearAttachments();
         setStatus(sendErrorText(result && result.error), 'error');
         return;
       }
       input.value = '';
       inputDrafts.set(state.conversationId, '');
+      clearAttachments();
       resizeInput();
       forceScroll = true;
       scrollToBottom(true);
@@ -1220,7 +1395,7 @@
 
   async function chooseWorkspace() {
     if (state.busy || changingConversation) return;
-    if ((state.messages.length || input.value.trim()) && !window.confirm(t('workspaceConfirm'))) return;
+    if ((state.messages.length || input.value.trim() || pendingFiles.length) && !window.confirm(t('workspaceConfirm'))) return;
     let result;
     try {
       await flushInputDraft();
@@ -1274,6 +1449,7 @@
   modeSel.addEventListener('change', onModeChange);
   workspaceBtn.addEventListener('click', chooseWorkspace);
   sendBtn.addEventListener('click', submit);
+  attachBtn.addEventListener('click', chooseAttachments);
 
   input.addEventListener('input', onInput);
   input.addEventListener('keydown', (e) => {

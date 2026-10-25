@@ -393,16 +393,16 @@ ipcMain.handle('custom-chat-state', () => {
   return { ...customChat.getState(), lang: settings.lang };
 });
 
-ipcMain.handle('custom-chat-send', (_e, text) => {
+ipcMain.handle('custom-chat-send', (_e, text, attachments) => {
   if (!customChat) return { ok: false, error: 'unavailable' };
   if (typeof text !== 'string') return { ok: false, error: 'empty' };
-  return customChat.send(text);
+  return customChat.send(text, attachments);
 });
 
-ipcMain.handle('custom-chat-interject', (_e, text) => {
+ipcMain.handle('custom-chat-interject', (_e, text, attachments) => {
   if (!customChat) return { ok: false, error: 'unavailable' };
   if (typeof text !== 'string') return { ok: false, error: 'empty' };
-  return customChat.interject(text);
+  return customChat.interject(text, attachments);
 });
 
 ipcMain.handle('custom-chat-stop', () => (customChat ? customChat.stop() : { ok: false }));
@@ -431,6 +431,32 @@ ipcMain.handle('custom-chat-delete', (_e, id) => (
 ipcMain.handle('custom-chat-draft', (_e, id, text) => (
   customChat ? customChat.saveInputDraft(id, text) : { ok: false }
 ));
+
+ipcMain.handle('custom-chat-attach', async () => {
+  if (!customChat) return { ok: false, error: 'unavailable' };
+  const options = {
+    title: T().chatAttachFiles,
+    properties: ['openFile', 'multiSelections'],
+    defaultPath: customChat.getState().workspace,
+  };
+  const result = chatWin && !chatWin.isDestroyed()
+    ? await dialog.showOpenDialog(chatWin, options)
+    : await dialog.showOpenDialog(options);
+  if (result.canceled || !result.filePaths || !result.filePaths.length) {
+    return { ok: false, error: 'canceled' };
+  }
+  return customChat.stageFiles(result.filePaths);
+});
+
+ipcMain.handle('custom-chat-attach-remove', (_e, id) => (
+  customChat ? customChat.unstageFile(id) : { ok: false, error: 'unavailable' }
+));
+
+ipcMain.handle('custom-chat-attach-clear', () => {
+  if (!customChat) return { ok: false, error: 'unavailable' };
+  customChat.clearStaged();
+  return { ok: true, files: [] };
+});
 
 ipcMain.handle('custom-chat-set-model', (_e, model) => {
   if (!customChat || typeof model !== 'string') return { ok: false, error: 'invalid-model' };
