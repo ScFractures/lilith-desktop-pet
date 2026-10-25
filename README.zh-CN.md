@@ -12,8 +12,8 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS 双击启动器（需与 LilithPet 放在同一目录）
 ├── Lilith 桌宠.cmd       # Windows 双击启动器（需与 LilithPet 同目录）
 ├── Lilith/               # 原版 3D 模型源文件（FBX + 贴图）
-├── Lilith_mao/           # 魔王（Maou）模型源文件（FBX + 贴图；目录沿用原文件名）
-└── Deepseek_M/           # DeepSeek M 模型源文件（FBX + 贴图）
+├── Deepseek_M/           # DeepSeek M 模型源文件（FBX + 贴图）
+└── Miku/                 # 初音未来模型源文件（FBX + 贴图）
 ```
 
 ## 运行
@@ -75,12 +75,14 @@ npm start
 
 - 拖拽桌宠可以移动位置，它会随机四处走动。
 - 右键桌宠打开菜单：**Qoder 对话…**、Qoder 余额、大小、3D 模型、摸摸头/走一走/转圈/跳一下/打招呼/睡觉、语言、隐藏和退出。
-- **Qoder 对话…** 会打开独立的对话窗口。在顶部选择模型、权限模式和工作目录，回车发送。回复实时流式显示，模型的思考内容放在可折叠的「思考过程」里，**停止**可以随时中断。**新对话**旁边的圆点表示 Qoder 会话是否已连接。
+- **Qoder 对话…** 会打开独立的对话窗口。在顶部选择模型、权限模式和工作目录，回车发送。回复实时流式显示，模型的思考内容放在可折叠的「思考过程」里，**停止**可以随时中断。**新对话**旁边的圆点表示 Qoder 会话是否已连接。点输入框左侧的回形针可以添加任意类型的文件（一次最多 10 个），也可以和文字一起发送。Qoder 模型通过 Qoder CLI 直接读取原文件，PDF、Word、PowerPoint、Excel、图片和大文件都能保留完整内容；自定义模型无法直接读取二进制文件，因此莉莉丝会在本机提取文本、PDF、DOCX、PPTX、XLSX 的文本预览（每个文件最多 300,000 字符，超出部分会注明文件路径），向自定义模型发送最近 60,000 字符的对话上下文；图片和其他二进制文件只发送文件名、大小和路径。附件会保存在当前对话里。
 - 工具调用会收进一行默认折叠的「工具调用」总览，不会挡住思考过程。展开总览可以看到每次调用，再点开单次调用查看输入和结果；运行中会显示当前工具，失败时会显示失败数量。
 - **Qoder 模型**会在选定的工作目录里运行本机 Qoder CLI，因此可以读文件、跑命令、改代码。权限模式决定允许哪些操作：**YOLO** 不确认直接执行工具，使用前请确认工作目录正确。没有安装 Qoder CLI 时，仍然可以使用自定义模型。
-- **添加模型**会打开模型设置页。自定义模型支持任意 OpenAI 兼容接口（Chat Completions 或 Responses API）和 Anthropic Messages API。可以自动读取模型列表和每个模型支持的思考深度，也可以手动填写模型 ID；测试连接后保存。添加的模型会出现在对话窗口的模型菜单里，并直接请求对应接口——不启用 Qoder 工具、权限模式和工作目录。
-- **新对话**会清空窗口里的当前对话，并开始新的会话。
+- **添加模型**会打开模型设置页。自定义模型支持任意 OpenAI 兼容接口（Chat Completions 或 Responses API）和 Anthropic Messages API。可以自动读取模型列表和每个模型支持的思考深度，也可以手动填写模型 ID；测试连接后保存。添加的模型会出现在对话窗口的模型菜单里，并直接请求对应接口。
+- 自定义模型默认只聊天。勾选 **允许工具调用** 后，它可以在对话窗口选定的工作目录里调用终端和文件工具（`run_command`、`read_file`、`write_file`、`list_files`）。权限由模式控制：**YOLO** 允许全部工具，**accept_edits** 允许读写文件但不允许终端，其余模式只读。
+- **新对话**会开始一段新的对话，之前的对话会保留在左侧**历史**面板里，可以搜索消息、切换、重命名、删除，或点 ✦ 让模型起标题。
 - 界面和台词都做了中英双语：右键菜单（或托盘菜单）里的「语言」随时切换，默认跟随系统语言。桌宠、对话窗口和模型设置页都会立即更新。
+- macOS 上默认开启 **避让打开的窗口**（可在右键或托盘菜单关闭）：她只在屏幕底边没有被其他应用窗口遮住的空档里走动，窗口盖到她时会自动挪到最近的空位，整条底边都被占满时暂时隐藏。
 - 右键菜单里的 **Qoder 余额** 会让莉莉丝读取本机 Qoder CLI 的额度（需要登录 Qoder），并播报剩余 credits。
 
 ### 数据保存在哪里
@@ -89,31 +91,33 @@ npm start
 
 - `pet-state.json` —— 桌宠位置、大小、当前 3D 模型、语言和窗口位置
 - `custom-models.json` —— 自定义接口及其 API Key（以明文保存在本机，不会上传）
-- `qoder-chat.json` —— 对话记录
+- `qoder-chat.json` —— 所有对话及其标题、附件和未发送的草稿
 - `qoder-models.json` —— Qoder 模型列表缓存
 - `qoder-balance.json` —— Qoder 额度缓存
+
+`qoder-chat.json` 里还会保存附件的提取文本，所以附加大型文档后这个文件会变大。
 
 消息只会发送到你选择的提供方：Qoder 模型走本机 Qoder CLI，自定义模型只发送到它自己的 Base URL。
 
 ## 模型
 
-应用内置三个 3D 模型：原版莉莉丝（`LilithPet/assets/lilith.glb`）、魔王版莉莉丝（`LilithPet/assets/lilith_maou.glb`，源文件在 `Lilith_mao/`）和 DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
+应用内置三个 3D 模型：原版莉莉丝（`LilithPet/assets/lilith.glb`）、DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）和初音未来（`LilithPet/assets/miku.glb`，源文件在 `Miku/`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
 
-每个模型都有独立的本地台词和人格：莉莉丝（原版/魔王）温柔、诗意、带点调皮；DeepSeek M 则冷静、简洁、偏理性，带一点克制的冷幽默。切换模型会同时切换她的本地台词和人格。Qoder 对话窗口使用的模型在该窗口里单独选择，不受这里影响。
+每个模型都有独立的本地台词和人格：莉莉丝温柔、诗意、带点调皮；DeepSeek M 冷静、简洁、偏理性，带一点克制的冷幽默；初音未来明亮、活泼、有音乐感，偶尔有点小得意。切换模型会同时切换本地台词和人格。Qoder 对话窗口使用的模型在该窗口里单独选择，不受这里影响。
 
-如需用 Blender 4.x 或更高版本从 FBX 源文件重新生成 GLB：
+如需用 Blender 4.x 或更高版本从源文件重新生成 GLB：
 
 ```bash
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
-  Lilith_mao/Lilith_mao.fbx LilithPet/assets/lilith_maou.glb \
-  --texture Lilith_mao/Lilith_mao/Lilith_mao_basecolor.JPEG
-
-Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
   Deepseek_M/Deepseek_M.fbx LilithPet/assets/deepseek_m.glb \
   --texture Deepseek_M/Deepseek_M/Deepseek_M_basecolor.JPEG
+
+Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
+  Miku/Miku.fbx LilithPet/assets/miku.glb \
+  --texture Miku/Miku/Miku_basecolor.JPEG --height 0.98
 ```
 
-脚本会合并网格、减面到约 26 万三角面、把 8K 贴图缩到 4K 并导出 Y-up 的 GLB，不会修改源文件。
+脚本会合并网格、减面到约 26 万三角面、把 8K 贴图缩到 4K 并导出 Y-up 的 GLB。`--height` 会把尺寸不同的角色统一缩放到应用内参考身高，不会修改源文件。
 
 ## 常见问题
 

@@ -3,16 +3,24 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const customTools = require('./custom-tools');
+const { extractAttachment, kindByExtension } = require('./attachments');
 
 const QODER_HOME = path.join(os.homedir(), '.qoder-cn');
 const DEFAULT_WORKSPACE = os.homedir();
 const DEFAULT_MODEL = 'DeepSeek-Flash';
 const DEFAULT_MODE = 'yolo';
-const MAX_MESSAGES = 140;
+const MAX_TITLE = 80;
+const CHECKPOINT_MS = 1200;
 const MAX_PROMPT = 20000;
+const MAX_FILES = 10;
+const MAX_FILE_CHARS = 300000;
+const MAX_NOTE = 500;
 const MAX_TOOL_TEXT = 4000;
-const MAX_REASONING = 30000;
-const RUN_LIMIT_MS = 60 * 60 * 1000;
+const MAX_TOOL_ROUNDS = 100;
+const MAX_TOOL_CALLS = 500;
+const TITLE_TIMEOUT_MS = 30000;
+const RUN_LIMIT_MS = 12 * 60 * 60 * 1000;
 const MODELS_TTL_MS = 12 * 60 * 60 * 1000;
 
 const FALLBACK_MODELS = [
@@ -97,9 +105,13 @@ function writeJsonAtomic(file, value) {
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
+    fs.writeFileSync(tmp, JSON.stringify(value, null, 2), { mode: 0o600 });
     fs.renameSync(tmp, file);
-  } catch {}
+    return true;
+  } catch (error) {
+    console.error('[qoder-chat] Could not save', path.basename(file), error.message);
+    return false;
+  }
 }
 
 function normalizeTool(tool) {
@@ -115,6 +127,66 @@ function normalizeTool(tool) {
   };
 }
 
+function cleanFileName(value) {
+  const name = String(value || '').split(/[\\/]/).pop().replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim();
+  return name.slice(0, 120) || 'file';
+}
+
+function normalizeFile(file) {
+  if (!file || typeof file !== 'object') return null;
+  const content = typeof file.content === 'string' ? file.content.slice(0, MAX_FILE_CHARS) : '';
+  const name = cleanFileName(file.name || file.path);
+  const kind = typeof file.kind === 'string' && file.kind
+    ? file.kind.slice(0, 24)
+    : (content ? 'text' : kindByExtension(name));
+  const entry = {
+    name,
+    size: Number.isFinite(file.size) && file.size >= 0 ? Math.round(file.size) : content.length,
+    kind,
+    content,
+    chars: content.length,
+    truncated: file.truncated === true,
+  };
+  if (typeof file.path === 'string' && file.path) entry.path = file.path.slice(0, 4096);
+  if (typeof file.note === 'string' && file.note.trim()) entry.note = file.note.slice(0, MAX_NOTE);
+  if (Number.isFinite(file.pages) && file.pages > 0) entry.pages = Math.round(file.pages);
+  return entry;
+}
+
+function publicFile(file) {
+  if (!file || typeof file !== 'object') return null;
+  const out = {
+    name: cleanFileName(file.name || file.path),
+    size: Number.isFinite(file.size) && file.size >= 0 ? Math.round(file.size) : 0,
+    kind: typeof file.kind === 'string' && file.kind ? file.kind.slice(0, 24) : 'binary',
+  };
+  if (Number.isFinite(file.chars) && file.chars > 0) out.chars = Math.round(file.chars);
+  if (file.truncated === true) out.truncated = true;
+  if (typeof file.note === 'string' && file.note.trim()) out.note = file.note.slice(0, MAX_NOTE);
+  if (Number.isFinite(file.pages) && file.pages > 0) out.pages = Math.round(file.pages);
+  return out;
+}
+
+function normalizeFiles(input) {
+  if (!Array.isArray(input)) return [];
+  return input.map(normalizeFile).filter(Boolean).slice(0, MAX_FILES);
+}
+
+function fileNames(message) {
+  return Array.isArray(message.files) ? message.files.map((file) => file.name).join(', ') : '';
+}
+
+function qoderPrompt(message) {
+  const text = String(message.text || '').trim();
+  const files = Array.isArray(message.files) ? message.files : [];
+  if (!files.length) return text;
+  const labels = files.map((file) => (typeof file.path === 'string' && file.path ? file.path : file.name));
+  const note = files.length === 1
+    ? `Attached file: ${labels[0]}`
+    : `Attached files: ${labels.join(', ')}`;
+  return text ? `${text}\n\n${note}` : note;
+}
+
 function normalizeMessages(input) {
   if (!Array.isArray(input)) return [];
   const out = [];
@@ -127,12 +199,16 @@ function normalizeMessages(input) {
       at: Number.isFinite(message.at) ? message.at : Date.now(),
       tools: Array.isArray(message.tools) ? message.tools.map(normalizeTool).filter(Boolean) : [],
     };
+    if (message.role === 'user') {
+      const files = normalizeFiles(message.files);
+      if (files.length) entry.files = files;
+    }
     if (message.role === 'assistant') {
       if (Number.isFinite(message.credits)) entry.credits = message.credits;
       if (Number.isFinite(message.durationMs)) entry.durationMs = message.durationMs;
       if (typeof message.model === 'string') entry.model = message.model;
       if (typeof message.reasoning === 'string' && message.reasoning.trim()) {
-        entry.reasoning = message.reasoning.slice(0, MAX_REASONING);
+        entry.reasoning = message.reasoning;
       }
       if (message.error === true) {
         entry.error = true;
@@ -142,7 +218,7 @@ function normalizeMessages(input) {
     }
     out.push(entry);
   }
-  return out.slice(-MAX_MESSAGES);
+  return out;
 }
 
 function toolSummary(name, input) {
@@ -197,6 +273,18 @@ function appendText(current, next) {
   return current.endsWith('\n\n') ? current + next : `${current}\n\n${next}`;
 }
 
+function toolSystemPrompt(workspace, mode) {
+  return [
+    'You are a helpful assistant with local tools for reading and editing files and running terminal commands.',
+    `Workspace: ${workspace}`,
+    `Permission mode: ${mode}.`,
+    `Current time: ${new Date().toISOString()}`,
+    'File paths are relative to the workspace; absolute paths inside the workspace are also accepted.',
+    'Use run_command for terminal tasks instead of asking the user to run them. Keep tool use focused and tell the user briefly what you are doing.',
+    'If a tool is denied by the permission mode, explain what mode the user needs to switch to.',
+  ].join('\n');
+}
+
 function runText(run) {
   return appendText(run.finalText, run.block);
 }
@@ -205,19 +293,182 @@ function isResumeFailure(text) {
   return /invalid session identifier|no conversation found|cannot resume|session .*not found|unable to resume/i.test(String(text || ''));
 }
 
-function loadState(file) {
-  let parsed = null;
-  try { parsed = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-  const model = typeof parsed?.model === 'string' && parsed.model.trim()
-    ? parsed.model.trim().slice(0, 80)
-    : DEFAULT_MODEL;
+function cleanTitle(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE);
+}
+
+function titlePrompt(userText, assistantText) {
+  const lines = [
+    'Give this conversation a short title.',
+    'Use the same language as the user message: at most 16 Chinese characters or 8 English words.',
+    'Output only the title itself — no quotes, no trailing punctuation, no explanation.',
+    '',
+    `User: ${String(userText || '').slice(0, 2000)}`,
+  ];
+  const assistant = String(assistantText || '').slice(0, 3000);
+  if (assistant) lines.push('', `Assistant: ${assistant}`);
+  return lines.join('\n');
+}
+
+function tidyTitle(value) {
+  const line = String(value || '').split(/\r?\n/).map((item) => item.trim()).find(Boolean) || '';
+  return line
+    .replace(/^(?:title|标题)\s*[:：]\s*/i, '')
+    .replace(/^["'“”‘’「」『』【】]+|["'“”‘’「」『』【】]+$/g, '')
+    .replace(/[。．.！!？?；;，,、\s]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40);
+}
+
+function requestQoderTitle(model, prompt, workspace) {
+  return new Promise((resolve) => {
+    const qoder = findQoder();
+    if (!qoder) return resolve('');
+    let child = null;
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (child) killProcessGroup(child);
+      resolve(tidyTitle(value));
+    };
+    const timer = setTimeout(() => finish(''), TITLE_TIMEOUT_MS);
+    try {
+      child = spawn(qoder, [
+        '-p', prompt,
+        '--output-format', 'stream-json',
+        '--model', model,
+        '--no-session-persistence',
+        '--thinking', 'disabled',
+        '--max-output-tokens', '300',
+        '--tools', '',
+      ], {
+        cwd: isDirectory(workspace) ? workspace : DEFAULT_WORKSPACE,
+        env: { ...process.env, TERM: 'xterm-256color' },
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch {
+      finish('');
+      return;
+    }
+    let buffer = '';
+    let streamed = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      buffer += chunk;
+      let index;
+      while ((index = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, index).trim();
+        buffer = buffer.slice(index + 1);
+        if (!line) continue;
+        let event;
+        try { event = JSON.parse(line); } catch { continue; }
+        if (event.type === 'result') {
+          finish(typeof event.result === 'string' && event.result.trim() ? event.result : streamed);
+          return;
+        }
+        if (event.type === 'assistant' && event.message && Array.isArray(event.message.content)) {
+          for (const block of event.message.content) {
+            if (block && block.type === 'text' && typeof block.text === 'string') streamed += block.text;
+          }
+        }
+      }
+    });
+    child.stderr.on('data', () => {});
+    child.on('error', () => finish(''));
+    child.on('close', () => finish(streamed));
+  });
+}
+
+function createConversation(options = {}) {
+  const now = Date.now();
   return {
-    sessionId: typeof parsed?.sessionId === 'string' && parsed.sessionId.length <= 80 ? parsed.sessionId : null,
-    model,
-    mode: MODES.some((mode) => mode.key === parsed?.mode) ? parsed.mode : DEFAULT_MODE,
-    workspace: isDirectory(parsed?.workspace) ? path.resolve(parsed.workspace) : DEFAULT_WORKSPACE,
-    messages: normalizeMessages(parsed?.messages),
-    updatedAt: Number.isFinite(parsed?.updatedAt) ? parsed.updatedAt : 0,
+    id: crypto.randomUUID(),
+    title: '',
+    titleSource: 'default',
+    sessionId: null,
+    model: options.model || DEFAULT_MODEL,
+    mode: options.mode || DEFAULT_MODE,
+    workspace: options.workspace || DEFAULT_WORKSPACE,
+    messages: [],
+    inputDraft: '',
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function normalizeConversation(source) {
+  const parsed = source && typeof source === 'object' ? source : {};
+  const conversation = createConversation();
+  conversation.id = typeof parsed.id === 'string' && parsed.id && parsed.id.length <= 80
+    ? parsed.id : conversation.id;
+  conversation.messages = normalizeMessages(parsed.messages);
+  // A checkpoint is never treated as a completed answer after an unclean exit.
+  if (parsed.pendingReply) {
+    const recovered = normalizeMessages([{ ...parsed.pendingReply, role: 'assistant', interrupted: true }])[0];
+    if (recovered && !conversation.messages.some((message) => message.id === recovered.id)) {
+      recovered.tools.forEach((tool) => { tool.state = 'done'; });
+      conversation.messages.push(recovered);
+    }
+  }
+  const firstUser = conversation.messages.find((message) => message.role === 'user');
+  const fallbackTitle = cleanTitle(firstUser?.text);
+  conversation.title = cleanTitle(parsed.title) || fallbackTitle;
+  if (parsed.titleSource === 'manual' || parsed.titleSource === 'ai') {
+    conversation.titleSource = parsed.titleSource;
+  } else if (conversation.title && fallbackTitle && conversation.title !== fallbackTitle) {
+    conversation.titleSource = 'manual';
+  }
+  conversation.sessionId = typeof parsed.sessionId === 'string' && parsed.sessionId.length <= 80
+    ? parsed.sessionId : null;
+  conversation.model = typeof parsed.model === 'string' && parsed.model.trim()
+    ? parsed.model.trim().slice(0, 120) : DEFAULT_MODEL;
+  conversation.mode = MODES.some((mode) => mode.key === parsed.mode) ? parsed.mode : DEFAULT_MODE;
+  conversation.workspace = isDirectory(parsed.workspace) ? path.resolve(parsed.workspace) : DEFAULT_WORKSPACE;
+  conversation.inputDraft = typeof parsed.inputDraft === 'string' ? parsed.inputDraft.slice(0, MAX_PROMPT) : '';
+  conversation.createdAt = Number.isFinite(parsed.createdAt) ? parsed.createdAt
+    : (conversation.messages[0]?.at || Date.now());
+  conversation.updatedAt = Number.isFinite(parsed.updatedAt) && parsed.updatedAt > 0
+    ? parsed.updatedAt : conversation.createdAt;
+  return conversation;
+}
+
+function loadHistory(file) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid history');
+    if (parsed.version != null && ![1, 2].includes(parsed.version)) throw new Error('Unknown history version');
+    if (parsed.version === 2 && !Array.isArray(parsed.conversations)) throw new Error('Invalid conversations');
+  } catch (error) {
+    if (error.code !== 'ENOENT' && fs.existsSync(file)) {
+      // Keep the original bytes for manual recovery rather than silently overwriting them.
+      fs.copyFileSync(file, `${file}.corrupt-${Date.now()}.bak`, fs.constants.COPYFILE_EXCL);
+      console.error('[qoder-chat] Invalid history was backed up:', error.message);
+    }
+    parsed = null;
+  }
+  const sources = parsed?.version === 2 ? parsed.conversations : (parsed ? [parsed] : []);
+  const seen = new Set();
+  const conversations = sources.filter((entry) => entry && typeof entry === 'object').map((entry) => {
+    const conversation = normalizeConversation(entry);
+    if (seen.has(conversation.id)) conversation.id = crypto.randomUUID();
+    seen.add(conversation.id);
+    return conversation;
+  });
+  if (!conversations.length) conversations.push(createConversation());
+  if (parsed && parsed.version !== 2) {
+    const backup = `${file}.v1-backup`;
+    if (!fs.existsSync(backup)) fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL);
+  }
+  return {
+    conversations,
+    activeConversationId: conversations.some((entry) => entry.id === parsed?.activeConversationId)
+      ? parsed.activeConversationId : conversations[0].id,
+    needsSave: !!parsed && (parsed.version !== 2 || sources.some((entry) => entry?.pendingReply)),
   };
 }
 
@@ -235,7 +486,8 @@ function loadModelCache(file) {
 }
 
 function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
-  const state = loadState(stateFile);
+  const history = loadHistory(stateFile);
+  let state = history.conversations.find((entry) => entry.id === history.activeConversationId);
   const cache = loadModelCache(modelsFile);
   let models = cache.models;
   let modelsFetchedAt = cache.fetchedAt;
@@ -243,10 +495,16 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
   let modelsChild = null;
   let activeRun = null;
   let shuttingDown = false;
+  const titleJobs = new Map();
+  const autoTitleTried = new Set();
+  const staged = new Map();
 
   const emit = (event) => {
     if (shuttingDown) return;
-    try { onEvent(event); } catch {}
+    if (activeRun && !activeRun.finished && ['delta', 'tool', 'tool-result', 'thinking', 'credits'].includes(event.type)) {
+      checkpointSoon(activeRun);
+    }
+    try { onEvent({ conversationId: state.id, ...event }); } catch {}
   };
 
   function customList() {
@@ -284,8 +542,109 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       api: entry.api,
       effort: entry.effort,
       model: entry.model,
+      tools: entry.tools === true,
     }));
     return [...qoderEntries, ...customEntries];
+  }
+
+  function publicMessage(message) {
+    const copy = {
+      ...message,
+      tools: message.tools.map((tool) => ({ ...tool })),
+    };
+    delete copy.files;
+    if (Array.isArray(message.files) && message.files.length) {
+      copy.files = message.files.map(publicFile).filter(Boolean);
+    }
+    return copy;
+  }
+
+  function stagedList() {
+    return [...staged.values()].map((file) => ({ ...publicFile(file), id: file.id }));
+  }
+
+  let stagingQueue = Promise.resolve();
+
+  async function doStageFiles(paths) {
+    const list = Array.isArray(paths) ? paths.filter((value) => typeof value === 'string' && value) : [];
+    if (!list.length) return { ok: false, error: 'empty' };
+    const errors = [];
+    for (const filePath of list) {
+      if (staged.size >= MAX_FILES) {
+        errors.push({ name: path.basename(filePath), code: 'too-many-files' });
+        break;
+      }
+      const existing = [...staged.values()].find((file) => file.path === filePath);
+      if (existing) continue;
+      let extracted;
+      try {
+        extracted = await extractAttachment(filePath, { maxChars: MAX_FILE_CHARS });
+      } catch (error) {
+        errors.push({
+          name: path.basename(filePath),
+          code: error && error.message === 'not-a-file' ? 'not-a-file' : 'unreadable-file',
+        });
+        continue;
+      }
+      const file = { ...extracted, id: crypto.randomUUID() };
+      staged.set(file.id, file);
+    }
+    return { ok: true, files: stagedList(), errors };
+  }
+
+  function stageFiles(paths) {
+    const job = stagingQueue.then(() => doStageFiles(paths));
+    stagingQueue = job.catch(() => {});
+    return job;
+  }
+
+  function unstageFile(id) {
+    if (typeof id === 'string' && id) staged.delete(id);
+    return { ok: true, files: stagedList() };
+  }
+
+  function clearStaged() {
+    staged.clear();
+  }
+
+  function resolveStaged(ids) {
+    if (ids == null) return { files: [] };
+    if (!Array.isArray(ids)) return { error: 'invalid-file' };
+    if (ids.length > MAX_FILES) return { error: 'too-many-files' };
+    const files = [];
+    for (const id of ids) {
+      const file = staged.get(String(id));
+      if (!file) return { error: 'attachment-expired' };
+      files.push(file);
+    }
+    return { files };
+  }
+
+  function listConversations(query = '') {
+    const search = String(query || '').trim().toLocaleLowerCase().slice(0, 200);
+    return history.conversations
+      .filter((conversation) => !search || [conversation.title, conversation.model, conversation.workspace]
+        .some((value) => String(value || '').toLocaleLowerCase().includes(search))
+        || conversation.messages.some((message) => message.text.toLocaleLowerCase().includes(search)
+          || (message.files || []).some((file) => file.name.toLocaleLowerCase().includes(search))))
+      .slice().sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt)
+      .map((conversation) => {
+        const custom = resolveCustom(conversation.model);
+        const last = [...conversation.messages].reverse()
+          .find((message) => message.text.trim() || message.errorText || (message.files || []).length);
+        const fallback = last && !last.text.trim() ? fileNames(last) : '';
+        return {
+          id: conversation.id,
+          title: conversation.title,
+          preview: String(last?.text || last?.errorText || fallback || '').replace(/\s+/g, ' ').slice(0, 120),
+          model: conversation.model,
+          modelLabel: custom ? custom.name : conversation.model,
+          workspace: conversation.workspace,
+          messageCount: conversation.messages.length,
+          createdAt: conversation.createdAt,
+          updatedAt: conversation.updatedAt,
+        };
+      });
   }
 
   function getState() {
@@ -294,16 +653,17 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       state.model = DEFAULT_MODEL;
     }
     return {
+      conversationId: state.id,
+      conversationTitle: state.title,
+      conversations: listConversations(),
+      inputDraft: state.inputDraft,
       sessionId: state.sessionId,
       model: state.model,
       modelKind: selectedCustom ? 'custom' : 'qoder',
       modelLabel: selectedCustom ? selectedCustom.name : state.model,
       mode: state.mode,
       workspace: state.workspace,
-      messages: state.messages.map((message) => ({
-        ...message,
-        tools: message.tools.map((tool) => ({ ...tool })),
-      })),
+      messages: state.messages.map(publicMessage),
       models,
       modelEntries: modelEntries(),
       customModels: customList(),
@@ -317,21 +677,44 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
         credits: activeRun.credits,
       } : null,
       updatedAt: state.updatedAt,
+      attachments: stagedList(),
     };
   }
 
-  function save() {
-    state.updatedAt = Date.now();
-    state.messages = state.messages.slice(-MAX_MESSAGES);
-    writeJsonAtomic(stateFile, {
-      version: 1,
-      sessionId: state.sessionId,
-      model: state.model,
-      mode: state.mode,
-      workspace: state.workspace,
-      messages: state.messages,
-      updatedAt: state.updatedAt,
+  function pendingReply(run) {
+    return {
+      id: run.messageId,
+      role: 'assistant',
+      text: runText(run).trim(),
+      reasoning: run.reasoning,
+      tools: run.tools.map((tool) => ({ ...tool })),
+      at: run.startedAt,
+      credits: run.credits,
+      durationMs: Date.now() - run.startedAt,
+      model: run.modelLabel,
+    };
+  }
+
+  function checkpointSoon(run) {
+    if (run.checkpointTimer || run.finished) return;
+    run.checkpointTimer = setTimeout(() => {
+      run.checkpointTimer = null;
+      if (activeRun === run && !run.finished) save();
+    }, CHECKPOINT_MS);
+  }
+
+  function save({ touch = true } = {}) {
+    if (touch) state.updatedAt = Date.now();
+    history.activeConversationId = state.id;
+    if (activeRun && !activeRun.finished) state.pendingReply = pendingReply(activeRun);
+    else delete state.pendingReply;
+    const saved = writeJsonAtomic(stateFile, {
+      version: 2,
+      activeConversationId: state.id,
+      conversations: history.conversations,
     });
+    if (!saved) emit({ type: 'notice', code: 'history-save-failed' });
+    return saved;
   }
 
   function emitSnapshot() {
@@ -351,9 +734,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
 
   function appendReasoning(run, chunk) {
     if (!chunk) return;
-    if (run.reasoning.length >= MAX_REASONING) return;
     run.reasoning += chunk;
-    if (run.reasoning.length > MAX_REASONING) run.reasoning = run.reasoning.slice(0, MAX_REASONING);
   }
 
   function publicTool(tool) {
@@ -364,6 +745,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     if (run.finished) return;
     run.finished = true;
     clearTimeout(run.hardTimer);
+    clearTimeout(run.checkpointTimer);
     if (run.child) killProcessGroup(run.child);
     if (activeRun === run) activeRun = null;
 
@@ -374,7 +756,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       ? run.durationMs
       : Date.now() - run.startedAt;
     const message = {
-      id: crypto.randomUUID(),
+      id: run.messageId,
       role: 'assistant',
       text,
       tools: run.tools.map((tool) => ({
@@ -386,14 +768,13 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       durationMs,
       model: run.modelLabel || state.model,
     };
-    if (run.reasoning && run.reasoning.trim()) message.reasoning = run.reasoning.trim().slice(0, MAX_REASONING);
+    if (run.reasoning && run.reasoning.trim()) message.reasoning = run.reasoning.trim();
     if (stopped) message.interrupted = true;
     if (errorText) {
       message.error = true;
       message.errorText = errorText;
     }
     state.messages.push(message);
-    state.messages = state.messages.slice(-MAX_MESSAGES);
     save();
 
     if (errorText) {
@@ -403,6 +784,8 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     } else {
       emit({ type: 'done', message, state: getState() });
     }
+
+    if (!errorText) maybeAutoTitle(state);
   }
 
   function handleEvent(event, run) {
@@ -544,7 +927,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     }
   }
 
-  function launchRun(prompt, { retried = false } = {}) {
+  function launchRun(prompt, { retried = false, attachments = [] } = {}) {
     const qoder = findQoder();
     if (!qoder) return { ok: false, error: 'qoder-not-found' };
     if (!isDirectory(state.workspace)) state.workspace = DEFAULT_WORKSPACE;
@@ -558,15 +941,20 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       '--model', state.model,
       '--permission-mode', state.mode,
     ];
+    for (const file of attachments) {
+      if (file && typeof file.path === 'string' && file.path) args.push('--attachment', file.path);
+    }
     if (newSession) args.push('--session-id', sessionId);
     else args.push('--resume', sessionId);
 
     const run = {
+      messageId: crypto.randomUUID(),
       child: null,
       kind: 'qoder',
       modelLabel: state.model,
       sessionId,
       prompt,
+      attachments,
       retried,
       usedResume: !newSession,
       finalText: '',
@@ -586,6 +974,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       hardTimer: null,
     };
     activeRun = run;
+    save({ touch: false });
     emit({ type: 'snapshot', state: getState() });
 
     let child;
@@ -659,16 +1048,143 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     if (run.finished) return;
     run.finished = true;
     clearTimeout(run.hardTimer);
+    clearTimeout(run.checkpointTimer);
     if (run.child) killProcessGroup(run.child);
     if (activeRun === run) activeRun = null;
     state.sessionId = null;
     save();
     emit({ type: 'notice', code: 'session-reset' });
-    launchRun(run.prompt, { retried: true });
+    launchRun(run.prompt, { retried: true, attachments: run.attachments || [] });
+  }
+
+  function runCustomTools(run, entry, history) {
+    const conversation = history.map((message) => ({ role: message.role, content: message.content }));
+    conversation.unshift({ role: 'system', content: toolSystemPrompt(state.workspace, state.mode) });
+    let callCount = 0;
+
+    const fail = (error) => {
+      if (run.finished) return;
+      if (run.stopRequested) {
+        finishRun(run, { stopped: true });
+        return;
+      }
+      if (run.timedOut) {
+        finishRun(run, { error: 'custom-timeout' });
+        return;
+      }
+      if (error && error.name === 'AbortError') {
+        finishRun(run, { error: 'Request aborted' });
+        return;
+      }
+      finishRun(run, { error: String((error && error.message) || error) });
+    };
+
+    const loop = async () => {
+      for (let round = 0; ; round += 1) {
+        if (run.finished) return;
+        if (round >= MAX_TOOL_ROUNDS) {
+          finishRun(run, { error: 'tool-round-limit' });
+          return;
+        }
+        let textStarted = false;
+        const turn = await customStore.toolTurn(entry.id, conversation, {
+          signal: run.controller.signal,
+          tools: customTools.toolSpecs(),
+          onDelta: (chunk) => {
+            if (run.finished || activeRun !== run) return;
+            if (!textStarted) {
+              textStarted = true;
+              if (run.block) run.block += '\n\n';
+            }
+            run.block += chunk;
+            run.thinking = false;
+            emitDelta(run);
+          },
+          onReasoning: (chunk) => {
+            if (run.finished || activeRun !== run) return;
+            if (!run.reasoning && !run.block && !run.thinking) {
+              run.thinking = true;
+              emit({ type: 'thinking', value: true });
+            }
+            appendReasoning(run, chunk);
+            emitDelta(run);
+          },
+        });
+        if (run.finished) return;
+        if (!Array.isArray(turn.toolCalls) || !turn.toolCalls.length) {
+          finishRun(run);
+          return;
+        }
+
+        conversation.push({
+          role: 'assistant',
+          content: turn.text || '',
+          toolCalls: turn.toolCalls,
+          apiBlocks: turn.apiBlocks || null,
+        });
+
+        for (const call of turn.toolCalls) {
+          if (run.finished) return;
+          if (run.stopRequested) {
+            finishRun(run, { stopped: true });
+            return;
+          }
+          callCount += 1;
+          if (callCount > MAX_TOOL_CALLS) {
+            finishRun(run, { error: 'tool-call-limit' });
+            return;
+          }
+          const name = String(call.name || 'tool').slice(0, 80);
+          const input = call.input && typeof call.input === 'object' ? call.input : {};
+          const tool = {
+            id: String(call.id || crypto.randomUUID()),
+            name,
+            summary: toolSummary(name, input),
+            inputText: clip(call.parseError && call.rawArguments ? call.rawArguments : safeJson(input), MAX_TOOL_TEXT),
+            result: '',
+            isError: false,
+            state: 'running',
+          };
+          run.tools.push(tool);
+          run.toolById.set(tool.id, tool);
+          emit({ type: 'tool', tool: publicTool(tool) });
+
+          let result;
+          if (call.parseError) {
+            result = { content: `Tool arguments were not valid JSON: ${call.parseError}`, isError: true };
+          } else {
+            result = await customTools.executeTool(name, input, {
+              workspace: state.workspace,
+              mode: state.mode,
+              signal: run.controller.signal,
+            });
+          }
+          if (run.finished) return;
+          if (run.stopRequested) {
+            finishRun(run, { stopped: true });
+            return;
+          }
+          tool.result = clip(toolContentText(result && result.content), MAX_TOOL_TEXT);
+          tool.isError = !!(result && result.isError);
+          tool.state = 'done';
+          emit({ type: 'tool-result', id: tool.id, result: tool.result, isError: tool.isError });
+          conversation.push({
+            role: 'tool',
+            toolCallId: tool.id,
+            name,
+            content: String((result && result.content) || ''),
+            isError: tool.isError,
+          });
+        }
+      }
+    };
+
+    loop().catch(fail);
   }
 
   function launchCustomRun(entry, prompt) {
     const run = {
+      messageId: crypto.randomUUID(),
       child: null,
       kind: 'custom',
       controller: new AbortController(),
@@ -692,6 +1208,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       hardTimer: null,
     };
     activeRun = run;
+    save({ touch: false });
     emit({ type: 'snapshot', state: getState() });
 
     const history = customStore
@@ -706,6 +1223,11 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
         if (!run.finished) finishRun(run, { error: 'custom-timeout' });
       }, 900);
     }, RUN_LIMIT_MS);
+
+    if (entry.tools === true) {
+      runCustomTools(run, entry, history);
+      return { ok: true };
+    }
 
     customStore.stream(entry.id, history, {
       signal: run.controller.signal,
@@ -748,10 +1270,13 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     return { ok: true };
   }
 
-  function send(text) {
+  function send(text, attachmentIds) {
     if (activeRun && !activeRun.finished) return { ok: false, error: 'busy' };
     const prompt = String(text == null ? '' : text).trim();
-    if (!prompt) return { ok: false, error: 'empty' };
+    const resolved = resolveStaged(attachmentIds);
+    if (resolved.error) return { ok: false, error: resolved.error };
+    const files = resolved.files;
+    if (!prompt && !files.length) return { ok: false, error: 'empty' };
     if (prompt.length > MAX_PROMPT) return { ok: false, error: 'too-long' };
 
     const custom = resolveCustom(state.model);
@@ -765,12 +1290,43 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       at: Date.now(),
       tools: [],
     };
+    const stored = normalizeFiles(files);
+    if (stored.length) message.files = stored;
     state.messages.push(message);
-    state.messages = state.messages.slice(-MAX_MESSAGES);
+    if (!state.title) {
+      state.title = cleanTitle(prompt || fileNames(message));
+      state.titleSource = 'default';
+    }
+    state.inputDraft = '';
+    for (const file of files) staged.delete(file.id);
     save();
 
     if (custom) return launchCustomRun(custom, message.text);
-    return launchRun(message.text);
+    return launchRun(qoderPrompt(message), { attachments: message.files });
+  }
+
+  async function interject(text, attachmentIds) {
+    const prompt = String(text == null ? '' : text).trim();
+    const resolved = resolveStaged(attachmentIds);
+    if (resolved.error) return { ok: false, error: resolved.error };
+    if (!prompt && !resolved.files.length) return { ok: false, error: 'empty' };
+    if (prompt.length > MAX_PROMPT) return { ok: false, error: 'too-long' };
+    const run = activeRun;
+    if (!run || run.finished) return send(prompt, attachmentIds);
+    const conversationId = state.id;
+    const closed = run.child && run.child.exitCode === null && !run.child.signalCode
+      ? new Promise((resolve) => {
+        const timer = setTimeout(resolve, 2000);
+        run.child.once('close', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      })
+      : Promise.resolve();
+    interruptActiveRun();
+    await closed;
+    if (state.id !== conversationId) return { ok: false, error: 'conversation-not-found' };
+    return send(prompt, attachmentIds);
   }
 
   function stop() {
@@ -792,22 +1348,154 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     return { ok: true };
   }
 
-  function newChat() {
+  function interruptActiveRun() {
     const run = activeRun;
-    if (run) {
-      run.finished = true;
-      clearTimeout(run.hardTimer);
-      if (run.controller) {
-        try { run.controller.abort(); } catch {}
-      }
-      if (run.child) killProcessGroup(run.child);
-      activeRun = null;
+    if (!run || run.finished) return;
+    run.stopRequested = true;
+    if (run.controller) {
+      try { run.controller.abort(); } catch {}
     }
-    state.sessionId = null;
-    state.messages = [];
-    save();
+    finishRun(run, { stopped: true });
+  }
+
+  function newChat() {
+    interruptActiveRun();
+    clearStaged();
+    if (!state.messages.length && !state.inputDraft && !state.sessionId) {
+      emitSnapshot();
+      return { ok: true, state: getState() };
+    }
+    state = createConversation(state);
+    history.conversations.push(state);
+    save({ touch: false });
     emitSnapshot();
     return { ok: true, state: getState() };
+  }
+
+  function switchConversation(id) {
+    const target = history.conversations.find((entry) => entry.id === id);
+    if (!target) return { ok: false, error: 'conversation-not-found' };
+    if (target !== state) {
+      interruptActiveRun();
+      clearStaged();
+      state = target;
+      save({ touch: false });
+    }
+    emitSnapshot();
+    return { ok: true, state: getState() };
+  }
+
+  function renameConversation(id, title) {
+    const target = history.conversations.find((entry) => entry.id === id);
+    if (!target) return { ok: false, error: 'conversation-not-found' };
+    const value = typeof title === 'string' ? cleanTitle(title) : '';
+    if (!value) return { ok: false, error: 'invalid-title' };
+    target.title = value;
+    target.titleSource = 'manual';
+    save({ touch: false });
+    emitSnapshot();
+    return { ok: true, state: getState() };
+  }
+
+  function titleContext(conversation) {
+    const user = conversation.messages
+      .find((message) => message.role === 'user' && (message.text.trim() || (message.files || []).length));
+    const assistant = conversation.messages
+      .find((message) => message.role === 'assistant' && !message.error && message.text.trim());
+    return { user, assistant };
+  }
+
+  function applyTitle(conversation, value, source) {
+    const title = tidyTitle(value);
+    if (!title) return '';
+    conversation.title = title.slice(0, MAX_TITLE);
+    conversation.titleSource = source;
+    save({ touch: false });
+    emitSnapshot();
+    return conversation.title;
+  }
+
+  function generateTitle(conversation) {
+    const { user, assistant } = titleContext(conversation);
+    if (!user) return Promise.resolve('');
+    const prompt = titlePrompt(user.text.trim() || `Files: ${fileNames(user)}`, assistant ? assistant.text : '');
+    const custom = resolveCustom(conversation.model);
+    if (custom) {
+      if (!customStore) return Promise.resolve('');
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TITLE_TIMEOUT_MS);
+      return customStore.stream(
+        { ...custom, effort: '' },
+        [{ role: 'user', content: prompt }],
+        { signal: controller.signal, maxTokens: 1024 }
+      ).then((reply) => tidyTitle(reply || '')).catch(() => '').finally(() => clearTimeout(timer));
+    }
+    if (isCustomModel(conversation.model)) return Promise.resolve('');
+    return requestQoderTitle(conversation.model, prompt, conversation.workspace);
+  }
+
+  function maybeAutoTitle(conversation) {
+    if (shuttingDown || !conversation || conversation.titleSource !== 'default') return;
+    if (!history.conversations.includes(conversation)) return;
+    if (autoTitleTried.has(conversation.id) || titleJobs.has(conversation.id)) return;
+    const { user, assistant } = titleContext(conversation);
+    if (!user || !assistant) return;
+    autoTitleTried.add(conversation.id);
+    const job = generateTitle(conversation);
+    titleJobs.set(conversation.id, job);
+    job.then((value) => {
+      if (!value || conversation.titleSource !== 'default') return;
+      if (!history.conversations.includes(conversation)) return;
+      applyTitle(conversation, value, 'ai');
+    }).catch(() => {}).finally(() => titleJobs.delete(conversation.id));
+  }
+
+  async function suggestTitle(id) {
+    const conversation = history.conversations.find((entry) => entry.id === id);
+    if (!conversation) return { ok: false, error: 'conversation-not-found' };
+    if (!titleContext(conversation).user) return { ok: false, error: 'no-messages' };
+    if (titleJobs.has(id)) return { ok: false, error: 'title-busy' };
+    const previous = conversation.title;
+    const job = generateTitle(conversation);
+    titleJobs.set(id, job);
+    try {
+      const value = await job;
+      if (!value) return { ok: false, error: 'title-failed' };
+      if (!history.conversations.includes(conversation)) return { ok: false, error: 'conversation-not-found' };
+      if (conversation.title !== previous) return { ok: false, error: 'title-failed' };
+      const title = applyTitle(conversation, value, 'ai');
+      return title ? { ok: true, title, state: getState() } : { ok: false, error: 'title-failed' };
+    } finally {
+      titleJobs.delete(id);
+    }
+  }
+
+  function deleteConversation(id) {
+    const target = history.conversations.find((entry) => entry.id === id);
+    if (!target) return { ok: false, error: 'conversation-not-found' };
+    if (target === state) {
+      interruptActiveRun();
+      clearStaged();
+    }
+    history.conversations = history.conversations.filter((entry) => entry !== target);
+    if (target === state) {
+      state = history.conversations.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0]
+        || createConversation(target);
+      if (!history.conversations.length) history.conversations.push(state);
+    }
+    save({ touch: false });
+    emitSnapshot();
+    return { ok: true, state: getState() };
+  }
+
+  function saveInputDraft(id, text) {
+    const target = history.conversations.find((entry) => entry.id === id);
+    if (!target) return { ok: false, error: 'conversation-not-found' };
+    if (typeof text !== 'string') return { ok: false, error: 'invalid-draft' };
+    const value = text.slice(0, MAX_PROMPT);
+    if (target.inputDraft === value) return { ok: true };
+    target.inputDraft = value;
+    return save({ touch: false }) ? { ok: true } : { ok: false, error: 'history-save-failed' };
   }
 
   function setModel(model) {
@@ -837,9 +1525,13 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     const dir = path.resolve(String(workspace || ''));
     if (!isDirectory(dir)) return { ok: false, error: 'invalid-workspace' };
     if (dir === state.workspace) return { ok: true, state: getState() };
-    state.workspace = dir;
-    state.sessionId = null;
-    state.messages = [];
+    clearStaged();
+    if (state.messages.length || state.inputDraft || state.sessionId) {
+      state = createConversation({ ...state, workspace: dir });
+      history.conversations.push(state);
+    } else {
+      state.workspace = dir;
+    }
     save();
     emitSnapshot();
     return { ok: true, state: getState() };
@@ -912,24 +1604,29 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
 
   function dispose() {
     shuttingDown = true;
+    clearStaged();
     if (modelsChild) {
       killProcessGroup(modelsChild);
       modelsChild = null;
     }
-    if (activeRun) {
-      activeRun.finished = true;
-      clearTimeout(activeRun.hardTimer);
-      if (activeRun.controller) {
-        try { activeRun.controller.abort(); } catch {}
-      }
-      if (activeRun.child) killProcessGroup(activeRun.child);
-      activeRun = null;
-    }
+    interruptActiveRun();
   }
+
+  if (history.needsSave) save({ touch: false });
 
   return {
     getState,
+    listConversations,
+    switchConversation,
+    renameConversation,
+    suggestTitle,
+    deleteConversation,
+    saveInputDraft,
+    stageFiles,
+    unstageFile,
+    clearStaged,
     send,
+    interject,
     stop,
     newChat,
     setModel,

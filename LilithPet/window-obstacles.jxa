@@ -1,0 +1,57 @@
+// On-screen window rectangles for the pet's bottom-edge avoidance.
+// Spawned and killed by window-obstacles.js. One JSON line per change:
+// [{"pid":123,"x":0,"y":0,"width":800,"height":600}, ...]
+ObjC.import('CoreGraphics');
+ObjC.import('Foundation');
+
+function snapshot() {
+  // kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements
+  var info = $.CGWindowListCopyWindowInfo(17, 0);
+  if (!info) return [];
+  var windows = ObjC.castRefToObject(info);
+  var out = [];
+  var count = windows.count;
+  for (var i = 0; i < count; i++) {
+    var entry = windows.objectAtIndex(i);
+    var layer = ObjC.unwrap(entry.objectForKey('kCGWindowLayer'));
+    if (layer !== 0) continue;
+    var alpha = ObjC.unwrap(entry.objectForKey('kCGWindowAlpha'));
+    if (typeof alpha === 'number' && alpha < 0.05) continue;
+    var bounds = entry.objectForKey('kCGWindowBounds');
+    if (!bounds) continue;
+    var x = ObjC.unwrap(bounds.objectForKey('X'));
+    var y = ObjC.unwrap(bounds.objectForKey('Y'));
+    var width = ObjC.unwrap(bounds.objectForKey('Width'));
+    var height = ObjC.unwrap(bounds.objectForKey('Height'));
+    if (!(width >= 40) || !(height >= 40)) continue;
+    out.push({
+      pid: ObjC.unwrap(entry.objectForKey('kCGWindowOwnerPID')),
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(width),
+      height: Math.round(height),
+    });
+  }
+  return out;
+}
+
+function emit(text) {
+  var data = $.NSString.alloc.initWithUTF8String(text + '\n')
+    .dataUsingEncoding($.NSUTF8StringEncoding);
+  $.NSFileHandle.fileHandleWithStandardOutput.writeData(data);
+}
+
+var last = '';
+while (true) {
+  var json;
+  try {
+    json = JSON.stringify(snapshot());
+  } catch (error) {
+    json = '[]';
+  }
+  if (json !== last) {
+    emit(json);
+    last = json;
+  }
+  $.NSThread.sleepForTimeInterval(0.8);
+}

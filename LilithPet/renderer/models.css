@@ -263,6 +263,22 @@ main {
 
 .field.full { grid-column: 1 / -1; }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #ff5d7e;
+}
+
 .model-input-row {
   display: flex;
   gap: 7px;

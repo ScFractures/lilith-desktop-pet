@@ -267,6 +267,7 @@ function makeEntry(input, base = {}, options = {}) {
   const thinking = normalizeThinking(source.thinking)
     || (sameModel ? normalizeThinking(base.thinking) : '')
     || inferred.thinking;
+  const tools = source.tools !== undefined ? source.tools === true : base.tools === true;
   const typedKey = typeof source.apiKey === 'string' ? source.apiKey.trim().slice(0, MAX_KEY) : '';
   const apiKey = typedKey || (typeof base.apiKey === 'string' ? base.apiKey : '');
   if (!validBaseUrl(baseUrl)) return { error: 'invalid-base-url' };
@@ -283,6 +284,7 @@ function makeEntry(input, base = {}, options = {}) {
       effort,
       efforts,
       thinking,
+      tools,
       legacy: base.legacy === true,
       createdAt: Number.isFinite(base.createdAt) ? base.createdAt : Date.now(),
       updatedAt: Date.now(),
@@ -317,6 +319,7 @@ function listPublic(entry) {
     effort: entry.effort,
     efforts: Array.isArray(entry.efforts) ? entry.efforts.slice() : null,
     thinking: entry.thinking || '',
+    tools: entry.tools === true,
     hasKey: !!entry.apiKey,
     legacy: entry.legacy === true,
     createdAt: entry.createdAt,
@@ -428,6 +431,305 @@ function responsesMessage(data) {
     }
   }
   return { text: content, reasoning };
+}
+
+function rawJson(value) {
+  try { return JSON.stringify(value); } catch { return '{}'; }
+}
+
+function parseToolArguments(raw) {
+  if (raw == null || raw === '') return { input: {}, rawArguments: '' };
+  if (typeof raw === 'object') return { input: raw, rawArguments: rawJson(raw) };
+  const source = String(raw);
+  try {
+    const parsed = JSON.parse(source);
+    return { input: parsed && typeof parsed === 'object' ? parsed : {}, rawArguments: source };
+  } catch (error) {
+    return { input: {}, rawArguments: source, parseError: String((error && error.message) || error) };
+  }
+}
+
+function toolDefinitions(type, api, tools) {
+  const list = (Array.isArray(tools) ? tools : [])
+    .filter((tool) => tool && typeof tool.name === 'string' && tool.name);
+  if (!list.length) return [];
+  const parameters = (tool) => (tool.parameters && typeof tool.parameters === 'object'
+    ? tool.parameters
+    : { type: 'object', properties: {} });
+  if (type === TYPE_ANTHROPIC) {
+    return list.map((tool) => ({
+      name: tool.name,
+      description: tool.description || '',
+      input_schema: parameters(tool),
+    }));
+  }
+  if (api === API_RESPONSES) {
+    return list.map((tool) => ({
+      type: 'function',
+      name: tool.name,
+      description: tool.description || '',
+      parameters: parameters(tool),
+    }));
+  }
+  return list.map((tool) => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description || '',
+      parameters: parameters(tool),
+    },
+  }));
+}
+
+function openAIToolMessages(conversation) {
+  const out = [];
+  for (const message of Array.isArray(conversation) ? conversation : []) {
+    if (!message || typeof message.role !== 'string') continue;
+    if (message.role === 'system' || message.role === 'user') {
+      out.push({ role: message.role, content: String(message.content == null ? '' : message.content) });
+      continue;
+    }
+    if (message.role === 'assistant') {
+      const entry = { role: 'assistant', content: String(message.content == null ? '' : message.content) };
+      if (Array.isArray(message.toolCalls) && message.toolCalls.length) {
+        entry.tool_calls = message.toolCalls.map((call) => ({
+          id: call.id,
+          type: 'function',
+          function: {
+            name: call.name,
+            arguments: call.rawArguments && !call.parseError ? call.rawArguments : rawJson(call.input || {}),
+          },
+        }));
+      }
+      out.push(entry);
+      continue;
+    }
+    if (message.role === 'tool') {
+      out.push({
+        role: 'tool',
+        tool_call_id: message.toolCallId,
+        content: String(message.content == null ? '' : message.content),
+      });
+    }
+  }
+  return out;
+}
+
+function responsesToolInput(conversation) {
+  const out = [];
+  for (const message of Array.isArray(conversation) ? conversation : []) {
+    if (!message || typeof message.role !== 'string') continue;
+    if (message.role === 'system' || message.role === 'user') {
+      out.push({ role: message.role, content: String(message.content == null ? '' : message.content) });
+      continue;
+    }
+    if (message.role === 'assistant') {
+      const text = String(message.content == null ? '' : message.content);
+      if (text) out.push({ role: 'assistant', content: text });
+      for (const call of Array.isArray(message.toolCalls) ? message.toolCalls : []) {
+        out.push({
+          type: 'function_call',
+          call_id: call.id,
+          name: call.name,
+          arguments: call.rawArguments && !call.parseError ? call.rawArguments : rawJson(call.input || {}),
+        });
+      }
+      continue;
+    }
+    if (message.role === 'tool') {
+      out.push({
+        type: 'function_call_output',
+        call_id: message.toolCallId,
+        output: String(message.content == null ? '' : message.content),
+      });
+    }
+  }
+  return out;
+}
+
+function anthropicToolPayload(conversation) {
+  const system = [];
+  const messages = [];
+  const add = (role, blocks) => {
+    if (!blocks.length) return;
+    const last = messages[messages.length - 1];
+    if (last && last.role === role) last.content.push(...blocks);
+    else messages.push({ role, content: blocks });
+  };
+  for (const message of Array.isArray(conversation) ? conversation : []) {
+    if (!message || typeof message.role !== 'string') continue;
+    if (message.role === 'system') {
+      const text = String(message.content == null ? '' : message.content);
+      if (text) system.push(text);
+      continue;
+    }
+    if (message.role === 'user') {
+      const text = String(message.content == null ? '' : message.content);
+      if (text) add('user', [{ type: 'text', text }]);
+      continue;
+    }
+    if (message.role === 'assistant') {
+      if (Array.isArray(message.apiBlocks) && message.apiBlocks.length) {
+        add('assistant', message.apiBlocks.filter((block) => block && typeof block === 'object'));
+        continue;
+      }
+      const blocks = [];
+      const text = String(message.content == null ? '' : message.content);
+      if (text) blocks.push({ type: 'text', text });
+      for (const call of Array.isArray(message.toolCalls) ? message.toolCalls : []) {
+        blocks.push({ type: 'tool_use', id: call.id, name: call.name, input: call.input || {} });
+      }
+      add('assistant', blocks);
+      continue;
+    }
+    if (message.role === 'tool') {
+      const block = {
+        type: 'tool_result',
+        tool_use_id: message.toolCallId,
+        content: String(message.content == null ? '' : message.content),
+      };
+      if (message.isError) block.is_error = true;
+      add('user', [block]);
+    }
+  }
+  if (!messages.length) messages.push({ role: 'user', content: [{ type: 'text', text: '(continue)' }] });
+  return { system: system.join('\n\n'), messages };
+}
+
+function toolResponseBody(entry, conversation, tools, stream, maxTokens) {
+  const type = normalizeType(entry.type);
+  const api = type === TYPE_OPENAI ? normalizeApi(entry.api, type) : '';
+  const effort = normalizeEffort(entry.effort, false);
+  const definitions = toolDefinitions(type, api, tools);
+
+  if (type === TYPE_ANTHROPIC) {
+    const payload = anthropicToolPayload(conversation);
+    const mode = anthropicThinkingMode(entry);
+    const active = effortEnabled(effort) && mode !== 'none';
+    const thinkingEffort = mode === 'effort' && effort === 'minimal' ? 'low' : effort;
+    const budget = active && thinkingEffort ? (EFFORT_BUDGETS[thinkingEffort] || EFFORT_BUDGETS.medium) : 0;
+    let maxOut = Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : budget + 4096;
+    if (budget) maxOut = Math.max(maxOut, budget + 512);
+    const body = {
+      model: entry.model,
+      messages: payload.messages,
+      max_tokens: maxOut,
+      stream: !!stream,
+    };
+    if (payload.system) body.system = payload.system;
+    if (definitions.length) {
+      body.tools = definitions;
+      body.tool_choice = { type: 'auto' };
+    }
+    if (mode === 'effort') {
+      if (effort === 'none') body.thinking = { type: 'disabled' };
+      else if (active) {
+        body.thinking = { type: 'adaptive' };
+        body.output_config = { effort: thinkingEffort };
+      }
+    } else if (budget) {
+      body.thinking = { type: 'enabled', budget_tokens: budget };
+    }
+    return body;
+  }
+
+  if (api === API_RESPONSES) {
+    const body = {
+      model: entry.model,
+      input: responsesToolInput(conversation),
+      stream: !!stream,
+    };
+    if (Number.isFinite(maxTokens) && maxTokens > 0) body.max_output_tokens = maxTokens;
+    if (effort) body.reasoning = { effort, summary: 'auto' };
+    if (definitions.length) {
+      body.tools = definitions;
+      body.tool_choice = 'auto';
+    }
+    return body;
+  }
+
+  const body = {
+    model: entry.model,
+    messages: openAIToolMessages(conversation),
+    stream: !!stream,
+  };
+  if (Number.isFinite(maxTokens) && maxTokens > 0) body.max_tokens = maxTokens;
+  if (effort) body.reasoning_effort = effort;
+  if (definitions.length) {
+    body.tools = definitions;
+    body.tool_choice = 'auto';
+  }
+  return body;
+}
+
+function normalizeOpenAIToolCall(call) {
+  const fn = call && call.function && typeof call.function === 'object' ? call.function : {};
+  const args = parseToolArguments(fn.arguments);
+  return {
+    id: String((call && call.id) || crypto.randomUUID()),
+    name: String(fn.name || 'tool').slice(0, 80),
+    ...args,
+  };
+}
+
+function openAIToolResult(data) {
+  const choice = data && Array.isArray(data.choices) ? data.choices[0] : null;
+  const source = (choice && (choice.message || choice.delta)) || {};
+  const content = source.content != null ? source.content : (choice && choice.text != null ? choice.text : '');
+  const toolCalls = Array.isArray(source.tool_calls)
+    ? source.tool_calls.map(normalizeOpenAIToolCall)
+    : [];
+  return {
+    text: extractContent(content),
+    reasoning: openAIReasoning(source),
+    toolCalls,
+    apiBlocks: null,
+  };
+}
+
+function anthropicToolResult(data) {
+  const blocks = data && Array.isArray(data.content) ? data.content : [];
+  let text = '';
+  let reasoning = '';
+  const toolCalls = [];
+  const apiBlocks = [];
+  for (const block of blocks) {
+    if (!block || typeof block !== 'object') continue;
+    if (block.type === 'text') {
+      if (typeof block.text === 'string') text += block.text;
+      apiBlocks.push(block);
+    } else if (block.type === 'thinking') {
+      if (typeof block.thinking === 'string') reasoning += block.thinking;
+      apiBlocks.push(block);
+    } else if (block.type === 'redacted_thinking') {
+      apiBlocks.push(block);
+    } else if (block.type === 'tool_use') {
+      const args = parseToolArguments(block.input);
+      toolCalls.push({
+        id: String(block.id || crypto.randomUUID()),
+        name: String(block.name || 'tool').slice(0, 80),
+        ...args,
+      });
+      apiBlocks.push(block);
+    }
+  }
+  return { text, reasoning, toolCalls, apiBlocks };
+}
+
+function responsesToolResult(data) {
+  const base = responsesMessage(data);
+  const toolCalls = [];
+  const items = data && Array.isArray(data.output) ? data.output : [];
+  for (const item of items) {
+    if (!item || item.type !== 'function_call') continue;
+    const args = parseToolArguments(item.arguments);
+    toolCalls.push({
+      id: String(item.call_id || item.id || crypto.randomUUID()),
+      name: String(item.name || 'tool').slice(0, 80),
+      ...args,
+    });
+  }
+  return { ...base, toolCalls, apiBlocks: null };
 }
 
 function responseBody(entry, messages, stream, maxTokens) {
@@ -769,6 +1071,407 @@ async function requestCompletion(entry, messages, options = {}) {
   return full;
 }
 
+async function requestToolTurn(entry, conversation, options = {}) {
+  const { stream = true, maxTokens = null, timeoutMs = 0, tools = [], onDelta, onReasoning } = options;
+  const externalSignal = options.signal || null;
+  const controller = new AbortController();
+  let timedOut = false;
+  let timer = null;
+
+  const forwardAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener('abort', forwardAbort, { once: true });
+  }
+  if (timeoutMs > 0) {
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+  }
+
+  const cleanup = () => {
+    if (timer) clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener('abort', forwardAbort);
+  };
+
+  const wrapError = (error) => {
+    if (timedOut) return new Error('timeout');
+    if (externalSignal && externalSignal.aborted) return abortError();
+    if (error && error.name === 'AbortError') return abortError();
+    return error;
+  };
+
+  const type = normalizeType(entry.type);
+  const api = type === TYPE_OPENAI ? normalizeApi(entry.api, type) : '';
+  const responses = isResponses(entry);
+  const body = toolResponseBody(entry, conversation, tools, stream, maxTokens);
+
+  let response;
+  try {
+    response = await fetch(endpointUrl(entry.baseUrl, type, api), {
+      method: 'POST',
+      headers: requestHeaders(entry, stream),
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    cleanup();
+    throw wrapError(error);
+  }
+
+  if (!response.ok) {
+    let detail = '';
+    try { detail = await response.text(); } catch {}
+    cleanup();
+    let message = detail;
+    try {
+      const parsed = JSON.parse(detail);
+      message = apiErrorText(parsed) || detail;
+    } catch {}
+    const snippet = String(message || '').replace(/\s+/g, ' ').slice(0, 320);
+    throw new Error(`HTTP ${response.status}${snippet ? `: ${snippet}` : ''}`);
+  }
+
+  const contentType = String(response.headers.get('content-type') || '');
+  if (!stream || !contentType.includes('text/event-stream') || !response.body) {
+    let data;
+    try {
+      data = await response.json();
+    } catch (error) {
+      cleanup();
+      throw wrapError(error);
+    }
+    cleanup();
+    const errorText = apiErrorText(data);
+    if (errorText) throw new Error(errorText);
+    const result = type === TYPE_ANTHROPIC
+      ? anthropicToolResult(data)
+      : (responses ? responsesToolResult(data) : openAIToolResult(data));
+    if (result.reasoning && onReasoning) onReasoning(result.reasoning);
+    if (result.text && onDelta) onDelta(result.text);
+    return result;
+  }
+
+  let full = '';
+  let reasoning = '';
+  let buffer = '';
+  let finished = false;
+  let wholeCalls = null;
+  const decoder = new TextDecoder();
+  const reader = response.body.getReader();
+  const openAICalls = new Map();
+  const anthropicStates = new Map();
+  const anthropicBlocks = [];
+  const anthropicCalls = [];
+  const responsesCalls = new Map();
+  let responsesNextIndex = 0;
+
+  const emitText = (chunk) => {
+    if (!chunk) return;
+    full += chunk;
+    if (onDelta) onDelta(chunk);
+  };
+  const emitReasoning = (chunk) => {
+    if (!chunk) return;
+    reasoning += chunk;
+    if (onReasoning) onReasoning(chunk);
+  };
+
+  const mergeOpenAICall = (part) => {
+    if (!part || typeof part !== 'object') return;
+    const index = Number.isInteger(part.index) ? part.index : 0;
+    let call = openAICalls.get(index);
+    if (!call) {
+      call = { id: '', name: '', arguments: '' };
+      openAICalls.set(index, call);
+    }
+    if (part.id) call.id = part.id;
+    const fn = part.function || {};
+    if (typeof fn.name === 'string') call.name += fn.name;
+    if (typeof fn.arguments === 'string') call.arguments += fn.arguments;
+  };
+
+  const responseCallFor = (event) => {
+    let index = Number.isInteger(event.output_index) ? event.output_index : null;
+    if (index == null && event.item_id) {
+      for (const [key, call] of responsesCalls) {
+        if (call.itemId === event.item_id) {
+          index = key;
+          break;
+        }
+      }
+    }
+    if (index == null) {
+      index = responsesNextIndex++;
+      responsesCalls.set(index, { itemId: '', id: '', name: '', arguments: '' });
+    }
+    let call = responsesCalls.get(index);
+    if (!call) {
+      call = { itemId: '', id: '', name: '', arguments: '' };
+      responsesCalls.set(index, call);
+    }
+    return call;
+  };
+
+  const finishAnthropicBlock = (state) => {
+    if (!state) return;
+    if (state.type === 'text') {
+      if (state.text) anthropicBlocks.push({ type: 'text', text: state.text });
+    } else if (state.type === 'thinking') {
+      if (state.thinking || state.signature) {
+        anthropicBlocks.push({
+          type: 'thinking',
+          thinking: state.thinking,
+          ...(state.signature ? { signature: state.signature } : {}),
+        });
+      }
+    } else if (state.type === 'redacted_thinking') {
+      anthropicBlocks.push({ type: 'redacted_thinking', data: state.data });
+    } else if (state.type === 'tool_use') {
+      const args = parseToolArguments(state.json || state.input || {});
+      const call = {
+        id: String(state.id || crypto.randomUUID()),
+        name: String(state.name || 'tool').slice(0, 80),
+        ...args,
+      };
+      anthropicCalls.push(call);
+      anthropicBlocks.push({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
+    }
+  };
+
+  const handlePayload = (payload) => {
+    if (!payload || payload === '[DONE]' || finished) return;
+    let event;
+    try {
+      event = JSON.parse(payload);
+    } catch {
+      return;
+    }
+    const errorText = apiErrorText(event);
+    if (errorText) throw new Error(errorText);
+
+    if (type === TYPE_ANTHROPIC) {
+      const index = Number.isInteger(event.index) ? event.index : 0;
+      if (event.type === 'content_block_start') {
+        const block = event.content_block || {};
+        if (block.type === 'text') {
+          const state = { type: 'text', text: typeof block.text === 'string' ? block.text : '' };
+          anthropicStates.set(index, state);
+          emitText(state.text);
+        } else if (block.type === 'thinking') {
+          const state = {
+            type: 'thinking',
+            thinking: typeof block.thinking === 'string' ? block.thinking : '',
+            signature: typeof block.signature === 'string' ? block.signature : '',
+          };
+          anthropicStates.set(index, state);
+          emitReasoning(state.thinking);
+        } else if (block.type === 'redacted_thinking') {
+          anthropicStates.set(index, { type: 'redacted_thinking', data: block.data || '' });
+        } else if (block.type === 'tool_use') {
+          anthropicStates.set(index, {
+            type: 'tool_use',
+            id: block.id,
+            name: block.name,
+            input: block.input,
+            json: '',
+          });
+        }
+      } else if (event.type === 'content_block_delta') {
+        const state = anthropicStates.get(index);
+        if (!state) return;
+        const delta = event.delta || {};
+        if (delta.type === 'text_delta' && typeof delta.text === 'string') {
+          state.text += delta.text;
+          emitText(delta.text);
+        } else if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+          state.thinking += delta.thinking;
+          emitReasoning(delta.thinking);
+        } else if (delta.type === 'signature_delta' && typeof delta.signature === 'string') {
+          state.signature += delta.signature;
+        } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
+          state.json += delta.partial_json;
+        }
+      } else if (event.type === 'content_block_stop') {
+        finishAnthropicBlock(anthropicStates.get(index));
+        anthropicStates.delete(index);
+      } else if (event.type === 'message_stop') {
+        finished = true;
+      }
+      return;
+    }
+
+    if (responses) {
+      if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+        emitText(event.delta);
+      } else if (event.type === 'response.reasoning_summary_text.delta'
+        || event.type === 'response.reasoning_text.delta') {
+        if (typeof event.delta === 'string') emitReasoning(event.delta);
+      } else if (event.type === 'response.output_item.added') {
+        const item = event.item || {};
+        if (item.type === 'function_call') {
+          const index = Number.isInteger(event.output_index) ? event.output_index : responsesNextIndex++;
+          responsesCalls.set(index, {
+            itemId: item.id || '',
+            id: item.call_id || item.id || '',
+            name: item.name || '',
+            arguments: item.arguments || '',
+          });
+          responsesNextIndex = Math.max(responsesNextIndex, index + 1);
+        }
+      } else if (event.type === 'response.function_call_arguments.delta') {
+        if (typeof event.delta === 'string') responseCallFor(event).arguments += event.delta;
+      } else if (event.type === 'response.function_call_arguments.done') {
+        if (typeof event.arguments === 'string') responseCallFor(event).arguments = event.arguments;
+      } else if (event.type === 'response.output_item.done') {
+        const item = event.item || {};
+        if (item.type === 'function_call') {
+          const call = responseCallFor(event);
+          call.itemId = item.id || call.itemId;
+          call.id = item.call_id || item.id || call.id;
+          call.name = item.name || call.name;
+          if (typeof item.arguments === 'string') call.arguments = item.arguments;
+        }
+      } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
+        finished = true;
+        const output = event.response && Array.isArray(event.response.output) ? event.response.output : null;
+        if (output) {
+          responsesCalls.clear();
+          let index = 0;
+          for (const item of output) {
+            if (!item || item.type !== 'function_call') continue;
+            responsesCalls.set(index++, {
+              itemId: item.id || '',
+              id: item.call_id || item.id || '',
+              name: item.name || '',
+              arguments: item.arguments || '',
+            });
+          }
+          responsesNextIndex = index;
+        }
+      } else if (event.type === 'response.failed' || event.type === 'response.error') {
+        throw new Error(apiErrorText(event.response) || 'response failed');
+      }
+      return;
+    }
+
+    const choice = Array.isArray(event.choices) ? event.choices[0] : null;
+    if (!choice) return;
+    const delta = choice.delta || {};
+    emitReasoning(openAIReasoning(delta));
+    if (delta.content != null) emitText(extractContent(delta.content));
+    else if (choice.message && choice.message.content != null) emitText(extractContent(choice.message.content));
+    if (Array.isArray(delta.tool_calls)) {
+      for (const part of delta.tool_calls) mergeOpenAICall(part);
+    }
+    if (choice.message && Array.isArray(choice.message.tool_calls) && choice.message.tool_calls.length) {
+      wholeCalls = choice.message.tool_calls.map(normalizeOpenAIToolCall);
+    }
+    if (choice.finish_reason) finished = true;
+  };
+
+  const handleLine = (rawLine) => {
+    const line = rawLine.replace(/\r$/, '');
+    if (!line || line.startsWith(':')) return;
+    if (!line.startsWith('data:')) return;
+    const payload = line.slice(5).trim();
+    if (!payload) return;
+    if (payload === '[DONE]') {
+      finished = true;
+      return;
+    }
+    handlePayload(payload);
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newline;
+      while ((newline = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 1);
+        handleLine(line);
+      }
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) handleLine(buffer);
+  } catch (error) {
+    try { await reader.cancel(); } catch {}
+    cleanup();
+    throw wrapError(error);
+  }
+  cleanup();
+
+  if (type === TYPE_ANTHROPIC) {
+    for (const [index, state] of anthropicStates) {
+      finishAnthropicBlock(state);
+      anthropicStates.delete(index);
+    }
+    return { text: full, reasoning, toolCalls: anthropicCalls, apiBlocks: anthropicBlocks };
+  }
+  if (responses) {
+    const toolCalls = [...responsesCalls.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([, call]) => {
+        const args = parseToolArguments(call.arguments);
+        return {
+          id: call.id || crypto.randomUUID(),
+          name: call.name || 'tool',
+          ...args,
+        };
+      });
+    return { text: full, reasoning, toolCalls, apiBlocks: null };
+  }
+  const toolCalls = wholeCalls || [...openAICalls.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, call]) => {
+      const args = parseToolArguments(call.arguments);
+      return {
+        id: call.id || crypto.randomUUID(),
+        name: call.name || 'tool',
+        ...args,
+      };
+    });
+  return { text: full, reasoning, toolCalls, apiBlocks: null };
+}
+
+function formatBytes(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function attachmentPrompt(files) {
+  const list = Array.isArray(files) ? files : [];
+  const blocks = [];
+  list.forEach((file, index) => {
+    if (!file || typeof file.name !== 'string') return;
+    const meta = [file.kind || 'file', formatBytes(file.size)];
+    if (Number.isFinite(file.pages) && file.pages > 0) meta.push(`${file.pages} pages`);
+    const lines = [`--- file ${index + 1}: ${file.name} (${meta.join(', ')}) ---`];
+    if (typeof file.path === 'string' && file.path) lines.push(`Path: ${file.path}`);
+    if (typeof file.note === 'string' && file.note) lines.push(`Note: ${file.note}`);
+    if (typeof file.content === 'string' && file.content) lines.push('', file.content);
+    else lines.push('', '(No local text preview is available for this file.)');
+    lines.push(`--- end file: ${file.name} ---`);
+    blocks.push(lines.join('\n'));
+  });
+  return blocks.length ? `Attached files:\n\n${blocks.join('\n\n')}` : '';
+}
+
+function messagePrompt(message) {
+  if (!message) return '';
+  const text = typeof message.text === 'string' ? message.text : '';
+  const files = attachmentPrompt(message.files);
+  if (!files) return text;
+  return text ? `${text}\n\n${files}` : files;
+}
+
 function buildHistory(messages) {
   const source = Array.isArray(messages) ? messages : [];
   const picked = [];
@@ -777,9 +1480,13 @@ function buildHistory(messages) {
     const message = source[index];
     if (!message || (message.role !== 'user' && message.role !== 'assistant')) continue;
     if (message.error === true) continue;
-    const content = typeof message.text === 'string' ? message.text.trim() : '';
+    const content = messagePrompt(message).trim();
     if (!content) continue;
-    if (chars + content.length > HISTORY_CHARS) break;
+    if (chars + content.length > HISTORY_CHARS) {
+      // Keep the newest message even when a single attachment exceeds the window.
+      if (!picked.length) picked.unshift({ role: message.role, content: content.slice(0, HISTORY_CHARS) });
+      break;
+    }
     chars += content.length;
     picked.unshift({ role: message.role, content });
   }
@@ -928,7 +1635,14 @@ function createCustomModelStore({ file, legacyFile, onChanged }) {
       signal: options.signal,
       onDelta: options.onDelta,
       onReasoning: options.onReasoning,
+      maxTokens: options.maxTokens,
     });
+  }
+
+  async function toolTurn(entry, conversation, options = {}) {
+    const target = typeof entry === 'string' ? get(entry) : entry;
+    if (!target) throw new Error('model-not-found');
+    return requestToolTurn(target, conversation, options);
   }
 
   load();
@@ -942,13 +1656,17 @@ function createCustomModelStore({ file, legacyFile, onChanged }) {
     test,
     fetchModels,
     stream,
+    toolTurn,
     buildHistory,
   };
 }
 
 module.exports = {
   createCustomModelStore,
+  requestToolTurn,
   buildHistory,
+  attachmentPrompt,
+  messagePrompt,
   normalizeBaseUrl,
   endpointUrl,
   modelsUrl,

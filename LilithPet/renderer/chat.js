@@ -3,6 +3,29 @@
   const LABELS = {
     zh: {
       newChat: '新对话',
+      history: '历史',
+      historyTitle: '历史对话',
+      closeHistory: '收起',
+      searchHistory: '搜索标题或消息…',
+      noHistoryResults: '没有找到匹配的对话',
+      historySavedLocally: '对话自动保存在本机',
+      untitledConversation: '未命名对话',
+      emptyConversation: '还没有消息',
+      messageCount: '{n} 条消息',
+      renameConversation: '重命名对话',
+      generateTitle: 'AI 起标题',
+      titleGenerating: '正在生成标题…',
+      titleFailed: '生成标题失败，请稍后再试。',
+      deleteConversation: '删除对话',
+      conversationName: '对话名称',
+      cancel: '取消',
+      save: '保存',
+      deleteConversationConfirm: '确定删除「{title}」？此操作不可撤销。',
+      deleteBusyConfirm: '此对话仍在运行，删除会停止当前任务。确定删除「{title}」？此操作不可撤销。',
+      switchBusyConfirm: '模型还在运行。切换对话会停止当前任务，并保存已生成内容。继续吗？',
+      conversationMissing: '这条对话已不存在，请重新选择。',
+      invalidTitle: '请输入对话名称。',
+      historySaveFailed: '对话保存失败，请检查磁盘空间和应用数据目录权限。',
       minimize: '最小化',
       close: '关闭',
       model: '模型',
@@ -13,7 +36,10 @@
       customAnthropicGroup: '自定义 · Anthropic',
       responsesSuffix: ' · Responses',
       reasoningSuffix: ' · 推理',
+      toolsSuffix: ' · 工具',
       customWarning: '自定义模型直连所选接口（OpenAI / Anthropic / Reasoning），不启用 Qoder 工具、权限模式和工作目录。',
+      customToolsWarning: '此自定义模型已启用工具：可在下方工作目录运行终端、读写文件，权限由模式控制；YOLO 会直接执行。',
+      customToolsWorking: '模型正在使用工具…',
       reasoning: '思考过程',
       sessionCustom: '自定义模型不使用 Qoder 会话',
       yoloWarning: 'YOLO：工具调用不再确认，请确认工作目录正确。',
@@ -23,7 +49,21 @@
       hintMode: '模式决定工具权限',
       hintEnter: 'Enter 发送',
       placeholder: '交代一件事，或直接问…',
+      attachFiles: '添加文件',
+      removeFile: '移除文件',
+      attachTooMany: '最多添加 {n} 个文件。',
+      attachReadFailed: '无法读取「{name}」。',
+      attachNotFile: '「{name}」不是文件。',
+      attachExpired: '附件已失效，请重新添加。',
+      attachAdded: '已添加 {n} 个文件。',
+      filePages: '{n} 页',
+      fileTruncated: '文本预览已截断',
+      fileTooMany: '附件数量超过上限。',
+      invalidFile: '附件格式无效。',
+      emptyFile: '附件是空文件。',
       send: '发送',
+      interject: '插嘴',
+      interjectHint: 'Enter 插嘴 · 会先停止当前输出',
       stop: '停止',
       enterHint: 'Enter 发送 · Shift+Enter 换行',
       sessionActive: '会话已连接，后续消息会保留上下文',
@@ -51,6 +91,8 @@
       errorTimeout: '请求超时了。',
       errorQoderTimeout: 'Qoder 运行超时了。',
       errorCustomTimeout: '自定义模型请求超时了。',
+      errorToolRoundLimit: '工具调用轮次超过上限，已停止。',
+      errorToolCallLimit: '工具调用次数超过上限，已停止。',
       busySend: '上一条还在进行，先等它结束或点停止。',
       emptySend: '先说点什么吧。',
       tooLong: '这段话太长了，精简一点。',
@@ -59,13 +101,35 @@
       invalidModel: '这个模型已不存在，请重新选择。',
       manageFailed: '打开添加模型页面失败：{error}',
       chooseWorkspace: '选择工作目录',
-      newChatConfirm: '开始新对话？当前对话会从窗口中清空。',
-      newChatBusyConfirm: 'Qoder 还在运行。开始新对话会停止当前运行并清空对话，继续吗？',
-      workspaceConfirm: '切换工作目录会开始新对话，当前对话会被清空。继续吗？',
+      newChatBusyConfirm: '模型还在运行。开始新对话会停止当前任务，当前对话和已生成内容会保留在历史中。继续吗？',
+      workspaceConfirm: '切换工作目录会开始新对话，当前对话会保留在历史中。继续吗？',
       requestFailed: '操作失败：{error}',
     },
     en: {
       newChat: 'New chat',
+      history: 'History',
+      historyTitle: 'Conversations',
+      closeHistory: 'Hide',
+      searchHistory: 'Search titles or messages…',
+      noHistoryResults: 'No matching conversations',
+      historySavedLocally: 'Conversations saved on this device',
+      untitledConversation: 'Untitled conversation',
+      emptyConversation: 'No messages yet',
+      messageCount: '{n} messages',
+      renameConversation: 'Rename conversation',
+      generateTitle: 'Suggest a title',
+      titleGenerating: 'Generating title…',
+      titleFailed: 'Could not generate a title. Try again later.',
+      deleteConversation: 'Delete conversation',
+      conversationName: 'Conversation name',
+      cancel: 'Cancel',
+      save: 'Save',
+      deleteConversationConfirm: 'Delete “{title}”? This cannot be undone.',
+      deleteBusyConfirm: 'This conversation is still running. Deleting it will stop the task. Delete “{title}”? This cannot be undone.',
+      switchBusyConfirm: 'The model is still running. Switching conversations stops the task and saves the partial reply. Continue?',
+      conversationMissing: 'That conversation no longer exists. Pick another one.',
+      invalidTitle: 'Enter a conversation name.',
+      historySaveFailed: 'Could not save the conversation. Check disk space and application-data permissions.',
       minimize: 'Minimize',
       close: 'Close',
       model: 'Model',
@@ -76,7 +140,10 @@
       customAnthropicGroup: 'Custom · Anthropic',
       responsesSuffix: ' · Responses',
       reasoningSuffix: ' · Reasoning',
+      toolsSuffix: ' · Tools',
       customWarning: 'Custom models call the selected endpoint directly (OpenAI / Anthropic / Reasoning); Qoder tools, mode and workspace are not used.',
+      customToolsWarning: 'Tool calls are enabled for this custom model: it can run the terminal and edit files in the workspace below. The mode controls permissions; YOLO runs tools immediately.',
+      customToolsWorking: 'The model is using tools…',
       reasoning: 'Reasoning',
       sessionCustom: 'Custom models do not use a Qoder session',
       yoloWarning: 'YOLO: tool calls run without confirmation. Make sure the workspace is correct.',
@@ -86,7 +153,21 @@
       hintMode: 'Mode sets tool permissions',
       hintEnter: 'Enter to send',
       placeholder: 'Assign a task, or just ask…',
+      attachFiles: 'Attach files',
+      removeFile: 'Remove file',
+      attachTooMany: 'You can attach up to {n} files.',
+      attachReadFailed: 'Could not read “{name}”.',
+      attachNotFile: '“{name}” is not a file.',
+      attachExpired: 'The attachment expired. Add it again.',
+      attachAdded: 'Attached {n} file(s).',
+      filePages: '{n} pages',
+      fileTruncated: 'Text preview truncated',
+      fileTooMany: 'Too many attachments.',
+      invalidFile: 'Invalid attachment.',
+      emptyFile: 'The attachment is empty.',
       send: 'Send',
+      interject: 'Interject',
+      interjectHint: 'Enter to interject · stops the current output',
       stop: 'Stop',
       enterHint: 'Enter to send · Shift+Enter for a new line',
       sessionActive: 'Session connected; later messages keep the context',
@@ -114,6 +195,8 @@
       errorTimeout: 'The request timed out.',
       errorQoderTimeout: 'The Qoder run timed out.',
       errorCustomTimeout: 'The custom model request timed out.',
+      errorToolRoundLimit: 'Stopped after too many tool rounds.',
+      errorToolCallLimit: 'Stopped after too many tool calls.',
       busySend: 'The previous turn is still running. Wait or press Stop.',
       emptySend: 'Say something first.',
       tooLong: 'That message is too long — trim it a little.',
@@ -122,9 +205,8 @@
       invalidModel: 'That model no longer exists. Pick another one.',
       manageFailed: 'Could not open the add-model page: {error}',
       chooseWorkspace: 'Choose workspace',
-      newChatConfirm: 'Start a new chat? The current conversation will be cleared from the window.',
-      newChatBusyConfirm: 'Qoder is still running. Starting a new chat will stop it and clear the conversation. Continue?',
-      workspaceConfirm: 'Switching workspace starts a new chat and clears the current conversation. Continue?',
+      newChatBusyConfirm: 'The model is still running. A new chat stops the task and keeps this conversation and partial reply in history. Continue?',
+      workspaceConfirm: 'Switching workspace starts a new chat and keeps this conversation in history. Continue?',
       requestFailed: 'Action failed: {error}',
     },
   };
@@ -142,8 +224,23 @@
   const workspacePath = document.getElementById('workspace-path');
   const yoloWarning = document.getElementById('yolo-warning');
   const customWarning = document.getElementById('custom-warning');
+  const customWarningText = document.getElementById('custom-warning-text');
   const sessionDot = document.getElementById('session-dot');
   const newChatBtn = document.getElementById('newchat');
+  const historyToggle = document.getElementById('history-toggle');
+  const historyPanel = document.getElementById('history-panel');
+  const historyClose = document.getElementById('history-close');
+  const historyScrim = document.getElementById('history-scrim');
+  const historyList = document.getElementById('history-list');
+  const historySearch = document.getElementById('history-search');
+  const historyEmpty = document.getElementById('history-empty');
+  const historyCount = document.getElementById('history-count');
+  const conversationTitle = document.getElementById('conversation-title');
+  const conversationCount = document.getElementById('conversation-count');
+  const renameDialog = document.getElementById('rename-dialog');
+  const renameForm = document.getElementById('rename-form');
+  const renameInput = document.getElementById('rename-input');
+  const renameSave = document.getElementById('rename-save');
   const minimizeBtn = document.getElementById('minimize');
   const closeBtn = document.getElementById('closewin');
   const spinner = document.getElementById('spinner');
@@ -153,9 +250,17 @@
   const stopBtn = document.getElementById('stop');
   const input = document.getElementById('input');
   const sendBtn = document.getElementById('send');
+  const sendLabel = sendBtn.querySelector('[data-i18n]');
+  const attachBtn = document.getElementById('attach');
+  const attachmentList = document.getElementById('attachment-list');
+  const enterHintEl = document.querySelector('.composer-foot [data-i18n="enterHint"]');
 
   let lang = 'zh';
   let state = {
+    conversationId: null,
+    conversationTitle: '',
+    conversations: [],
+    inputDraft: '',
     sessionId: null,
     model: '',
     modelKind: 'qoder',
@@ -178,6 +283,20 @@
   let statusResetTimer = null;
   let forceScroll = false;
   let draftQueued = false;
+  let historyOpen = window.innerWidth >= 760;
+  let historyResults = null;
+  let historySearchTimer = null;
+  let searchRevision = 0;
+  let changingConversation = false;
+  let renamingId = null;
+  let submitting = false;
+  const titleBusy = new Set();
+  const inputDrafts = new Map();
+  let inputDraftTimer = null;
+  let inputDraftWrite = Promise.resolve();
+  const MAX_FILES = 10;
+  let pendingFiles = [];
+  let attaching = false;
 
   const t = (key) => (LABELS[lang] && LABELS[lang][key]) || LABELS.zh[key] || key;
   const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_m, k) => (vars && k in vars ? vars[k] : `{${k}}`));
@@ -209,11 +328,142 @@
     }
   }
 
+  function formatFileSize(bytes) {
+    const n = Number(bytes);
+    if (!Number.isFinite(n) || n <= 0) return '0 B';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) {
+      const kb = n / 1024;
+      return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
+    }
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function fileTitle(file) {
+    const meta = [String(file.kind || 'file').toUpperCase(), formatFileSize(file.size)];
+    if (Number.isFinite(file.pages) && file.pages > 0) meta.push(fill(t('filePages'), { n: file.pages }));
+    const lines = [file.name, meta.join(' · ')];
+    if (file.truncated) lines.push(t('fileTruncated'));
+    if (file.note) lines.push(file.note);
+    return lines.join('\n');
+  }
+
+  function fileBadge(file) {
+    return String(file.kind || 'file').toUpperCase().slice(0, 5);
+  }
+
+  function makeFileChip(file, { removable = false, index = -1 } = {}) {
+    const chip = document.createElement('span');
+    chip.className = removable ? 'attachment-chip' : 'bubble-file';
+    chip.title = fileTitle(file);
+    const kind = document.createElement('span');
+    kind.className = removable ? 'attachment-kind' : 'bubble-file-kind';
+    kind.textContent = fileBadge(file);
+    const name = document.createElement('span');
+    name.className = removable ? 'attachment-name' : 'bubble-file-name';
+    name.textContent = file.name;
+    const size = document.createElement('span');
+    size.className = removable ? 'attachment-size' : 'bubble-file-size';
+    size.textContent = formatFileSize(file.size);
+    chip.append(kind, name, size);
+    if (removable) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'attachment-remove';
+      remove.textContent = '×';
+      remove.title = t('removeFile');
+      remove.setAttribute('aria-label', `${t('removeFile')}: ${file.name}`);
+      remove.addEventListener('click', () => removeAttachmentAt(index));
+      chip.appendChild(remove);
+    }
+    return chip;
+  }
+
+  function renderAttachments() {
+    attachmentList.textContent = '';
+    attachmentList.hidden = !pendingFiles.length;
+    pendingFiles.forEach((file, index) => {
+      attachmentList.appendChild(makeFileChip(file, { removable: true, index }));
+    });
+    attachBtn.disabled = attaching || changingConversation || pendingFiles.length >= MAX_FILES;
+    resizeInput();
+  }
+
+  function clearAttachments() {
+    if (!pendingFiles.length) return;
+    pendingFiles = [];
+    renderAttachments();
+  }
+
+  async function removeAttachmentAt(index) {
+    const file = pendingFiles[index];
+    if (!file) return;
+    pendingFiles.splice(index, 1);
+    renderAttachments();
+    if (!file.id) return;
+    try {
+      const result = await window.qoder.removeAttachment(file.id);
+      if (result && Array.isArray(result.files)) {
+        pendingFiles = result.files;
+        renderAttachments();
+      }
+    } catch {}
+  }
+
+  function attachmentErrorText(error) {
+    if (!error) return t('invalidFile');
+    switch (error.code) {
+      case 'too-many-files': return fill(t('attachTooMany'), { n: MAX_FILES });
+      case 'not-a-file': return fill(t('attachNotFile'), { name: error.name || '' });
+      case 'unreadable-file': return fill(t('attachReadFailed'), { name: error.name || '' });
+      default: return fill(t('requestFailed'), { error: error.code || t('invalidFile') });
+    }
+  }
+
+  async function chooseAttachments() {
+    if (attachBtn.disabled || attaching) return;
+    const before = pendingFiles.length;
+    let firstError = null;
+    attaching = true;
+    attachBtn.disabled = true;
+    try {
+      let result;
+      try {
+        result = await window.qoder.attachFiles();
+      } catch (error) {
+        setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
+        return;
+      }
+      if (!result || result.ok === false) {
+        if (result && result.error !== 'canceled') setStatus(sendErrorText(result.error), 'error');
+        return;
+      }
+      pendingFiles = Array.isArray(result.files) ? result.files : pendingFiles;
+      const errors = Array.isArray(result.errors) ? result.errors : [];
+      if (errors.length) firstError = attachmentErrorText(errors[0]);
+    } finally {
+      attaching = false;
+      renderAttachments();
+    }
+    if (firstError) setStatus(firstError, 'error');
+    else if (pendingFiles.length > before) setStatus(fill(t('attachAdded'), { n: pendingFiles.length - before }), 'transient');
+  }
+
   function isCustomSelected() {
     if (state.modelKind === 'custom') return true;
     const entries = Array.isArray(state.modelEntries) ? state.modelEntries : [];
     const entry = entries.find((item) => item.value === state.model);
     return !!entry && entry.kind === 'custom';
+  }
+
+  function selectedModelEntry() {
+    const entries = Array.isArray(state.modelEntries) ? state.modelEntries : [];
+    return entries.find((item) => item.value === state.model) || null;
+  }
+
+  function customToolsSelected() {
+    const entry = selectedModelEntry();
+    return !!entry && entry.kind === 'custom' && entry.tools === true;
   }
 
   function selectionKind(entries, model) {
@@ -231,11 +481,18 @@
       el.placeholder = t(el.dataset.i18nPlaceholder);
     });
     newChatBtn.textContent = t('newChat');
+    historyToggle.title = t('historyTitle');
+    historyPanel.setAttribute('aria-label', t('historyTitle'));
+    historyList.setAttribute('aria-label', t('historyTitle'));
+    historySearch.setAttribute('aria-label', t('searchHistory'));
+    historyScrim.setAttribute('aria-label', t('closeHistory'));
     manageModelsBtn.title = t('manageModels');
     minimizeBtn.title = t('minimize');
     closeBtn.title = t('close');
     workspaceBtn.title = state.workspace || '';
     input.placeholder = t('placeholder');
+    attachBtn.title = t('attachFiles');
+    attachBtn.setAttribute('aria-label', t('attachFiles'));
     sessionDot.title = state.sessionId ? t('sessionActive') : t('sessionNew');
     yoloWarning.hidden = state.mode !== 'yolo';
   }
@@ -289,7 +546,7 @@
         const option = document.createElement('option');
         option.value = entry.value || '';
         const suffix = entry.kind === 'custom'
-          ? (entry.api === 'responses' ? t('responsesSuffix') : (entry.effort ? t('reasoningSuffix') : ''))
+          ? `${entry.tools ? t('toolsSuffix') : ''}${entry.api === 'responses' ? t('responsesSuffix') : (entry.effort ? t('reasoningSuffix') : '')}`
           : '';
         option.textContent = `${entry.label || entry.value || '—'}${suffix}`;
         option.title = entry.kind === 'custom' && entry.model ? entry.model : (entry.label || '');
@@ -323,6 +580,110 @@
     });
     const active = list.find((mode) => mode.key === current);
     modeSel.title = active && active.hint ? (active.hint[lang] || active.hint.zh || '') : '';
+  }
+
+  function setHistoryOpen(open) {
+    historyOpen = !!open;
+    document.getElementById('app').classList.toggle('history-open', historyOpen);
+    historyToggle.setAttribute('aria-expanded', String(historyOpen));
+    historyPanel.inert = !historyOpen;
+  }
+
+  function formatHistoryDate(value) {
+    if (!Number.isFinite(value) || value <= 0) return '';
+    return new Intl.DateTimeFormat(lang === 'zh' ? 'zh-CN' : 'en', {
+      month: 'short', day: 'numeric',
+    }).format(new Date(value));
+  }
+
+  function renderHistory() {
+    const query = historySearch.value.trim();
+    const entries = query && historyResults !== null ? historyResults : state.conversations;
+    historyList.textContent = '';
+    historyEmpty.hidden = entries.length > 0;
+    historyCount.textContent = query ? `${entries.length} / ${state.conversations.length}` : String(entries.length);
+    entries.forEach((conversation) => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.dataset.conversationId = conversation.id;
+      const selected = conversation.id === state.conversationId;
+      item.classList.toggle('active', selected);
+      const select = document.createElement('button');
+      select.type = 'button';
+      select.className = 'history-select';
+      select.disabled = changingConversation;
+      if (selected) select.setAttribute('aria-current', 'true');
+      const title = conversation.title || t('untitledConversation');
+      select.title = `${title}\n${conversation.workspace || ''}`;
+      const name = document.createElement('span');
+      name.className = 'history-item-title';
+      name.textContent = title;
+      const preview = document.createElement('span');
+      preview.className = 'history-preview';
+      preview.textContent = conversation.preview || t('emptyConversation');
+      const meta = document.createElement('span');
+      meta.className = 'history-meta';
+      const model = document.createElement('span');
+      model.className = 'history-model';
+      model.textContent = conversation.modelLabel || conversation.model || '';
+      const date = document.createElement('time');
+      date.textContent = formatHistoryDate(conversation.updatedAt);
+      if (conversation.updatedAt) date.dateTime = new Date(conversation.updatedAt).toISOString();
+      date.title = new Date(conversation.updatedAt || Date.now()).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en');
+      meta.append(model, date);
+      select.append(name, preview, meta);
+      select.addEventListener('click', () => switchConversation(conversation.id));
+      const actions = document.createElement('div');
+      actions.className = 'history-actions';
+      const suggest = document.createElement('button');
+      suggest.type = 'button';
+      suggest.className = 'history-action';
+      suggest.textContent = '✦';
+      suggest.title = t('generateTitle');
+      suggest.setAttribute('aria-label', `${t('generateTitle')}: ${title}`);
+      suggest.disabled = changingConversation || titleBusy.has(conversation.id) || !conversation.messageCount;
+      suggest.addEventListener('click', () => suggestTitle(conversation, suggest));
+      const rename = document.createElement('button');
+      rename.type = 'button';
+      rename.className = 'history-action';
+      rename.textContent = '✎';
+      rename.title = t('renameConversation');
+      rename.setAttribute('aria-label', `${t('renameConversation')}: ${title}`);
+      rename.disabled = changingConversation;
+      rename.addEventListener('click', () => openRename(conversation));
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'history-action';
+      remove.textContent = '×';
+      remove.title = t('deleteConversation');
+      remove.setAttribute('aria-label', `${t('deleteConversation')}: ${title}`);
+      remove.disabled = changingConversation;
+      remove.addEventListener('click', () => deleteConversation(conversation));
+      actions.append(suggest, rename, remove);
+      item.append(select, actions);
+      historyList.appendChild(item);
+    });
+  }
+
+  function refreshHistorySearch() {
+    clearTimeout(historySearchTimer);
+    const revision = ++searchRevision;
+    const query = historySearch.value.trim();
+    if (!query) {
+      historyResults = null;
+      renderHistory();
+      return;
+    }
+    historySearchTimer = setTimeout(async () => {
+      try {
+        const entries = await window.qoder.listConversations(query);
+        if (revision !== searchRevision) return;
+        historyResults = Array.isArray(entries) ? entries : [];
+        renderHistory();
+      } catch (error) {
+        if (revision === searchRevision) setStatus(fill(t('requestFailed'), { error: String(error.message || error) }), 'error');
+      }
+    }, 150);
   }
 
   function makeMeta(message) {
@@ -443,6 +804,8 @@
     if (code === 'qoder-timeout') return t('errorQoderTimeout');
     if (code === 'custom-timeout') return t('errorCustomTimeout');
     if (code === 'timeout') return t('errorTimeout');
+    if (code === 'tool-round-limit') return t('errorToolRoundLimit');
+    if (code === 'tool-call-limit') return t('errorToolCallLimit');
     return code;
   }
 
@@ -518,10 +881,22 @@
     const row = document.createElement('div');
     row.className = `msg ${message.role}`;
     if (message.role === 'user') {
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.textContent = message.text;
-      row.appendChild(bubble);
+      const stack = document.createElement('div');
+      stack.className = 'user-stack';
+      if (message.text) {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = message.text;
+        stack.appendChild(bubble);
+      }
+      const files = Array.isArray(message.files) ? message.files : [];
+      if (files.length) {
+        const list = document.createElement('div');
+        list.className = 'bubble-files';
+        files.forEach((file) => list.appendChild(makeFileChip(file)));
+        stack.appendChild(list);
+      }
+      row.appendChild(stack);
       return row;
     }
 
@@ -680,19 +1055,26 @@
       messagesEl.appendChild(makeDraftElement(draft));
     }
     updateChrome();
+    renderHistory();
     scrollToBottom(stick);
   }
 
   function updateChrome() {
     const busy = !!state.busy;
+    newChatBtn.disabled = changingConversation;
+    conversationTitle.textContent = state.conversationTitle || t('newChat');
+    conversationTitle.title = conversationTitle.textContent;
+    conversationCount.textContent = fill(t('messageCount'), { n: state.messages.length });
     const custom = isCustomSelected();
-    modelSel.disabled = busy;
-    modeSel.disabled = busy || custom;
-    workspaceBtn.disabled = busy || custom;
+    const customTools = custom && customToolsSelected();
+    modelSel.disabled = busy || changingConversation;
+    modeSel.disabled = busy || changingConversation || (custom && !customTools);
+    workspaceBtn.disabled = busy || changingConversation || (custom && !customTools);
+    attachBtn.disabled = attaching || changingConversation || pendingFiles.length >= MAX_FILES;
     stopBtn.hidden = !busy;
     spinner.hidden = !busy;
     if (busy) {
-      setStatus(custom ? t('workingCustom') : t('working'));
+      setStatus(customTools ? t('customToolsWorking') : (custom ? t('workingCustom') : t('working')));
       const credits = formatCredits(state.draft && state.draft.credits);
       statusCredits.textContent = credits;
     } else if (!statusbar.classList.contains('error')) {
@@ -705,14 +1087,22 @@
     workspaceName.textContent = basename(state.workspace);
     workspaceBtn.title = state.workspace || '';
     workspacePath.textContent = state.workspace || '';
-    yoloWarning.hidden = custom || state.mode !== 'yolo';
+    yoloWarning.hidden = (custom && !customTools) || state.mode !== 'yolo';
     customWarning.hidden = !custom;
-    sendBtn.disabled = busy || !input.value.trim();
+    if (custom && customWarningText) {
+      customWarningText.textContent = customTools ? t('customToolsWarning') : t('customWarning');
+    }
+    sendBtn.disabled = changingConversation || (!input.value.trim() && !pendingFiles.length);
+    sendLabel.textContent = busy ? t('interject') : t('send');
+    enterHintEl.textContent = busy ? t('interjectHint') : t('enterHint');
+    sendBtn.classList.toggle('interjecting', busy);
   }
 
   // ------------------------------------------------------------- state sync
   function applyState(next) {
     if (!next) return;
+    const changed = next.conversationId !== state.conversationId;
+    if (changed && state.conversationId) inputDrafts.set(state.conversationId, input.value);
     const model = next.model || '';
     const modelEntries = Array.isArray(next.modelEntries)
       ? next.modelEntries
@@ -720,6 +1110,10 @@
         ? next.models.map((name) => ({ value: name, label: name, kind: 'qoder' }))
         : state.modelEntries);
     state = {
+      conversationId: next.conversationId || null,
+      conversationTitle: next.conversationTitle || '',
+      conversations: Array.isArray(next.conversations) ? next.conversations : state.conversations,
+      inputDraft: typeof next.inputDraft === 'string' ? next.inputDraft : '',
       sessionId: next.sessionId || null,
       model,
       modelKind: next.modelKind === 'custom' ? 'custom' : selectionKind(modelEntries, model),
@@ -732,10 +1126,21 @@
       busy: !!next.busy,
       draft: next.draft || null,
     };
+    if (changed) {
+      input.value = inputDrafts.has(state.conversationId) ? inputDrafts.get(state.conversationId) : state.inputDraft;
+      inputDrafts.set(state.conversationId, input.value);
+      pendingFiles = [];
+      resizeInput();
+      forceScroll = true;
+      setStatus(t('ready'));
+    }
+    if (Array.isArray(next.attachments)) pendingFiles = next.attachments;
+    renderAttachments();
     setStaticTexts();
     renderModelOptions(state.modelEntries, state.model);
     renderModeOptions(state.modes, state.mode);
     renderAll();
+    if (historySearch.value.trim()) refreshHistorySearch();
     if (!state.busy && !statusText.textContent) setStatus(t('ready'));
   }
 
@@ -794,6 +1199,9 @@
 
   function handleEvent(event) {
     if (!event || typeof event.type !== 'string') return;
+    // Ignore a delayed stream event from the conversation that was just left.
+    if (event.conversationId && event.conversationId !== state.conversationId
+      && !['snapshot', 'done', 'stopped', 'error'].includes(event.type)) return;
     switch (event.type) {
       case 'snapshot':
         applyState(event.state);
@@ -844,6 +1252,7 @@
         break;
       case 'notice':
         if (event.code === 'session-reset') setStatus(t('sessionReset'), 'transient');
+        if (event.code === 'history-save-failed') setStatus(t('historySaveFailed'), 'error');
         break;
       case 'done':
         applyState(event.state);
@@ -869,7 +1278,7 @@
   function resizeInput() {
     input.style.height = 'auto';
     input.style.height = `${Math.min(150, input.scrollHeight)}px`;
-    sendBtn.disabled = state.busy || !input.value.trim();
+    sendBtn.disabled = changingConversation || (!input.value.trim() && !pendingFiles.length);
   }
 
   function sendErrorText(code) {
@@ -880,29 +1289,48 @@
       case 'qoder-not-found': return t('qoderMissing');
       case 'spawn-failed': return t('spawnFailed');
       case 'invalid-model': return t('invalidModel');
+      case 'conversation-not-found': return t('conversationMissing');
+      case 'invalid-title': return t('invalidTitle');
+      case 'title-busy': return t('titleGenerating');
+      case 'title-failed': return t('titleFailed');
+      case 'no-messages': return t('titleFailed');
+      case 'history-save-failed': return t('historySaveFailed');
+      case 'too-many-files': return t('fileTooMany');
+      case 'attachment-expired': return t('attachExpired');
+      case 'invalid-file': return t('invalidFile');
+      case 'empty-file': return t('emptyFile');
       default: return fill(t('requestFailed'), { error: code || 'unknown' });
     }
   }
 
   async function submit() {
-    if (state.busy) return;
+    if (submitting || changingConversation) return;
     const text = input.value.trim();
-    if (!text) return;
-    let result;
+    if (!text && !pendingFiles.length) return;
+    const files = pendingFiles.map((file) => file.id).filter(Boolean);
+    const interject = !!state.busy;
+    submitting = true;
     try {
-      result = await window.qoder.send(text);
+      await flushInputDraft();
+      const result = interject
+        ? await window.qoder.interject(text, files)
+        : await window.qoder.send(text, files);
+      if (!result || !result.ok) {
+        if (result && result.error === 'attachment-expired') clearAttachments();
+        setStatus(sendErrorText(result && result.error), 'error');
+        return;
+      }
+      input.value = '';
+      inputDrafts.set(state.conversationId, '');
+      clearAttachments();
+      resizeInput();
+      forceScroll = true;
+      scrollToBottom(true);
     } catch (error) {
       setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
-      return;
+    } finally {
+      submitting = false;
     }
-    if (!result || !result.ok) {
-      setStatus(sendErrorText(result && result.error), 'error');
-      return;
-    }
-    input.value = '';
-    resizeInput();
-    forceScroll = true;
-    scrollToBottom(true);
   }
 
   async function stopRun() {
@@ -913,26 +1341,143 @@
     stopBtn.disabled = false;
   }
 
-  async function newChat() {
-    if (state.busy) {
-      if (!window.confirm(t('newChatBusyConfirm'))) return;
-    } else if (state.messages.length && !window.confirm(t('newChatConfirm'))) {
-      return;
-    }
+  function persistInputDraft() {
+    clearTimeout(inputDraftTimer);
+    if (!state.conversationId) return inputDraftWrite;
+    const id = state.conversationId;
+    const text = input.value;
+    inputDrafts.set(id, text);
+    // Serialize writes so a late debounce cannot replace a newer draft.
+    inputDraftWrite = inputDraftWrite.catch(() => {}).then(() => window.qoder.saveInputDraft(id, text)).then((result) => {
+      if (result && !result.ok && result.error !== 'conversation-not-found') setStatus(sendErrorText(result.error), 'error');
+    }).catch((error) => {
+      setStatus(fill(t('requestFailed'), { error: String(error.message || error) }), 'error');
+    });
+    return inputDraftWrite;
+  }
+
+  function flushInputDraft() {
+    return persistInputDraft();
+  }
+
+  function onInput() {
+    resizeInput();
+    inputDrafts.set(state.conversationId, input.value);
+    clearTimeout(inputDraftTimer);
+    inputDraftTimer = setTimeout(persistInputDraft, 350);
+  }
+
+  async function conversationAction(action, { closeHistory = false } = {}) {
+    if (changingConversation) return;
+    changingConversation = true;
+    updateChrome();
+    renderHistory();
     try {
-      const result = await window.qoder.newChat();
-      if (result && result.state) applyState(result.state);
+      await flushInputDraft();
+      const result = await action();
+      if (!result || !result.ok) {
+        setStatus(sendErrorText(result && result.error), 'error');
+        return;
+      }
+      if (result.state) applyState(result.state);
+      if (closeHistory && window.innerWidth < 760) setHistoryOpen(false);
       input.focus();
     } catch (error) {
+      setStatus(fill(t('requestFailed'), { error: String(error.message || error) }), 'error');
+    } finally {
+      changingConversation = false;
+      updateChrome();
+      renderHistory();
+    }
+  }
+
+  async function newChat() {
+    if (changingConversation) return;
+    if (state.busy && !window.confirm(t('newChatBusyConfirm'))) return;
+    await conversationAction(() => window.qoder.newChat(), { closeHistory: true });
+  }
+
+  async function switchConversation(id) {
+    if (changingConversation) return;
+    if (id === state.conversationId) {
+      if (window.innerWidth < 760) setHistoryOpen(false);
+      input.focus();
+      return;
+    }
+    if (state.busy && !window.confirm(t('switchBusyConfirm'))) return;
+    await conversationAction(() => window.qoder.switchConversation(id), { closeHistory: true });
+  }
+
+  async function deleteConversation(conversation) {
+    if (changingConversation) return;
+    const key = state.busy && conversation.id === state.conversationId ? 'deleteBusyConfirm' : 'deleteConversationConfirm';
+    if (!window.confirm(fill(t(key), { title: conversation.title || t('untitledConversation') }))) return;
+    await conversationAction(async () => {
+      const result = await window.qoder.deleteConversation(conversation.id);
+      if (result && result.ok) inputDrafts.delete(conversation.id);
+      return result;
+    });
+  }
+
+  function openRename(conversation) {
+    if (changingConversation || renameDialog.open) return;
+    renamingId = conversation.id;
+    renameInput.value = conversation.title || '';
+    renameSave.disabled = false;
+    renameDialog.showModal();
+    renameInput.focus();
+    renameInput.select();
+  }
+
+  async function saveRename(event) {
+    event.preventDefault();
+    if (!renamingId || !renameInput.value.trim() || renameSave.disabled) return;
+    renameSave.disabled = true;
+    try {
+      const result = await window.qoder.renameConversation(renamingId, renameInput.value.trim());
+      if (!result || !result.ok) {
+        setStatus(sendErrorText(result && result.error), 'error');
+        return;
+      }
+      if (result.state) applyState(result.state);
+      renameDialog.close();
+    } catch (error) {
+      setStatus(fill(t('requestFailed'), { error: String(error.message || error) }), 'error');
+    } finally {
+      renameSave.disabled = false;
+    }
+  }
+
+  async function suggestTitle(conversation, button) {
+    if (changingConversation || titleBusy.has(conversation.id)) return;
+    titleBusy.add(conversation.id);
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = '…';
+    setStatus(t('titleGenerating'));
+    try {
+      const result = await window.qoder.suggestTitle(conversation.id);
+      if (!result || !result.ok) {
+        setStatus(sendErrorText(result && result.error), 'error');
+        return;
+      }
+      if (result.state) applyState(result.state);
+      setStatus(t('done'));
+    } catch (error) {
       setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
+    } finally {
+      titleBusy.delete(conversation.id);
+      button.disabled = changingConversation || !conversation.messageCount;
+      button.textContent = label;
     }
   }
 
   async function chooseWorkspace() {
-    if (state.busy) return;
-    if (state.messages.length && !window.confirm(t('workspaceConfirm'))) return;
+    if (state.busy || changingConversation) return;
+    if ((state.messages.length || input.value.trim() || pendingFiles.length) && !window.confirm(t('workspaceConfirm'))) return;
     let result;
     try {
+      await flushInputDraft();
       result = await window.qoder.chooseWorkspace();
     } catch (error) {
       setStatus(fill(t('requestFailed'), { error: String((error && error.message) || error) }), 'error');
@@ -975,8 +1520,24 @@
 
   // ------------------------------------------------------------- wiring
   newChatBtn.addEventListener('click', newChat);
+  historyToggle.addEventListener('click', () => setHistoryOpen(!historyOpen));
+  historyClose.addEventListener('click', () => { setHistoryOpen(false); historyToggle.focus(); });
+  historyScrim.addEventListener('click', () => setHistoryOpen(false));
+  historySearch.addEventListener('input', refreshHistorySearch);
+  renameForm.addEventListener('submit', saveRename);
+  document.getElementById('rename-cancel').addEventListener('click', () => renameDialog.close());
+  renameDialog.addEventListener('close', () => { renamingId = null; });
+  window.addEventListener('beforeunload', () => { persistInputDraft(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) persistInputDraft(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !renameDialog.open && historyOpen) {
+      setHistoryOpen(false);
+      historyToggle.focus();
+    }
+  });
+  setHistoryOpen(historyOpen);
   minimizeBtn.addEventListener('click', () => window.qoder.minimize());
-  closeBtn.addEventListener('click', () => window.qoder.close());
+  closeBtn.addEventListener('click', async () => { await flushInputDraft(); window.qoder.close(); });
   manageModelsBtn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -987,8 +1548,9 @@
   modelSel.addEventListener('change', onModelChange);
   modeSel.addEventListener('change', onModeChange);
   sendBtn.addEventListener('click', submit);
+  attachBtn.addEventListener('click', chooseAttachments);
 
-  input.addEventListener('input', resizeInput);
+  input.addEventListener('input', onInput);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();

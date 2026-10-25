@@ -20,10 +20,29 @@
         <span id="session-dot" class="session-dot" title=""></span>
         <button id="minimize" class="win-button" type="button">–</button>
         <button id="closewin" class="win-button close" type="button">×</button>
+        <button id="history-toggle" class="ghost-button" type="button" aria-controls="history-panel" aria-expanded="false" data-i18n="history">历史</button>
         <button id="newchat" class="ghost-button" type="button" data-i18n="newChat">新对话</button>
       </div>
     </header>
 
+    <div id="chat-layout">
+      <button id="history-scrim" type="button" tabindex="-1" aria-label="关闭历史列表"></button>
+      <aside id="history-panel" aria-label="历史对话" inert>
+        <div class="history-heading">
+          <h2 data-i18n="historyTitle">历史对话</h2>
+          <span id="history-count" class="history-count"></span>
+          <button id="history-close" class="history-close" type="button" data-i18n="closeHistory">收起</button>
+        </div>
+        <input id="history-search" class="history-search" type="search" maxlength="200" data-i18n-placeholder="searchHistory" placeholder="搜索标题或消息…" aria-label="搜索历史对话" />
+        <nav id="history-list" class="history-list" aria-label="历史对话"></nav>
+        <p id="history-empty" class="history-empty" hidden data-i18n="noHistoryResults">没有找到匹配的对话</p>
+        <p class="history-foot" data-i18n="historySavedLocally">对话自动保存在本机</p>
+      </aside>
+      <section id="conversation">
+        <div id="conversation-bar">
+          <h1 id="conversation-title"></h1>
+          <span id="conversation-count"></span>
+        </div>
     <section id="controls">
       <div class="control model-control">
         <span class="control-label">
@@ -49,7 +68,7 @@
 
     <div id="custom-warning" class="yolo-warning model-warning" hidden>
       <span class="warn-dot"></span>
-      <span data-i18n="customWarning">自定义模型直连 OpenAI 兼容接口，不启用 Qoder 工具、权限模式和工作目录。</span>
+      <span id="custom-warning-text" data-i18n="customWarning">自定义模型直连 OpenAI 兼容接口，不启用 Qoder 工具、权限模式和工作目录。</span>
     </div>
 
     <main id="messages" aria-live="polite">
@@ -77,7 +96,13 @@
     </div>
 
     <footer id="composer">
+      <div id="attachment-list" class="attachment-list" hidden></div>
       <div class="composer-box">
+        <button id="attach" class="attach-button" type="button" aria-label="添加文件">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.5 11.5 12 20a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a4 4 0 0 1 5.7 5.7l-8.5 8.5a2.5 2.5 0 0 1-3.5-3.5l7.8-7.8"/>
+          </svg>
+        </button>
         <textarea id="input" rows="1" data-i18n-placeholder="placeholder" placeholder="交代一件事，或直接问…"></textarea>
         <button id="send" class="send-button" type="button" disabled>
           <span data-i18n="send">发送</span>
@@ -89,7 +114,20 @@
         <span id="workspace-path" class="workspace-path"></span>
       </div>
     </footer>
+      </section>
+    </div>
   </div>
+  <dialog id="rename-dialog" class="rename-dialog">
+    <form id="rename-form">
+      <h2 data-i18n="renameConversation">重命名对话</h2>
+      <label for="rename-input" data-i18n="conversationName">对话名称</label>
+      <input id="rename-input" type="text" maxlength="80" autocomplete="off" required />
+      <div class="dialog-actions">
+        <button id="rename-cancel" class="ghost-button" type="button" data-i18n="cancel">取消</button>
+        <button id="rename-save" class="ghost-button primary" type="submit" data-i18n="save">保存</button>
+      </div>
+    </form>
+  </dialog>
   <script src="./chat.js"></script>
 </body>
 </html>

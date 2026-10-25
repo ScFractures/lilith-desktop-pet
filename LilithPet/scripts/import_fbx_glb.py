@@ -1,11 +1,13 @@
-"""Convert an FBX character into the compact GLB the desktop pet app loads.
+"""Convert an FBX or GLB character into the compact GLB the desktop pet app loads.
 
 Run:
-  Blender -b --python import_fbx_glb.py -- <source.fbx> <out.glb> [--texture path] [--polys 260000] [--tex 4096]
+  Blender -b --python import_fbx_glb.py -- <source.fbx|source.glb> <out.glb> [--texture path] [--polys 260000] [--tex 4096] [--height 0.98]
 
-The source FBX is left untouched. Meshes are joined, decimated and exported with
+The source is left untouched. Meshes are joined, decimated and exported with
 Y-up coordinates so the renderer can normalise and rotate them like the original
-Lilith model.
+Lilith model. GLB input keeps its embedded textures. --height uniformly scales
+the mesh so its Blender Z extent matches, keeping characters authored at
+different scales the same in-app size.
 """
 import bpy
 import os
@@ -22,6 +24,7 @@ OUT = args[1]
 TEXTURE = None
 TARGET_POLYS = 260000
 TEX_MAX = 4096
+TARGET_HEIGHT = 0.0
 i = 2
 while i < len(args):
     if args[i] == "--texture" and i + 1 < len(args):
@@ -30,13 +33,18 @@ while i < len(args):
         TARGET_POLYS = int(args[i + 1]); i += 2
     elif args[i] == "--tex" and i + 1 < len(args):
         TEX_MAX = int(args[i + 1]); i += 2
+    elif args[i] == "--height" and i + 1 < len(args):
+        TARGET_HEIGHT = float(args[i + 1]); i += 2
     else:
         raise SystemExit(f"unknown argument: {args[i]}")
 
 t0 = time.time()
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.ops.import_scene.fbx(filepath=FBX)
+if FBX.lower().endswith((".glb", ".gltf")):
+    bpy.ops.import_scene.gltf(filepath=FBX)
+else:
+    bpy.ops.import_scene.fbx(filepath=FBX)
 
 # Static pet: keep only meshes, so imported cameras/lights/empties don't end up in the GLB
 for obj in list(bpy.data.objects):
@@ -96,22 +104,32 @@ for img in list(bpy.data.images):
         bpy.data.images.remove(img)
 tmp_dir = tempfile.mkdtemp(prefix="lilith-glb-")
 seen = set()
-for img in bpy.data.images:
-    if not img.filepath or img.size[0] == 0:
+for img in list(bpy.data.images):
+    if img.size[0] == 0:
         continue
-    path = os.path.abspath(bpy.path.abspath(img.filepath))
+    path = os.path.abspath(bpy.path.abspath(img.filepath)) if img.filepath else img.name
     if path in seen or max(img.size) <= TEX_MAX:
         continue
     seen.add(path)
     w = TEX_MAX
     h = max(1, round(img.size[1] * TEX_MAX / img.size[0]))
     img.scale(w, h)
-    resized = os.path.join(tmp_dir, os.path.splitext(os.path.basename(path))[0] + f"_{w}.jpg")
+    base = os.path.splitext(os.path.basename(img.filepath or img.name))[0] or "texture"
+    resized = os.path.join(tmp_dir, base + f"_{w}.jpg")
     img.filepath_raw = resized
     img.file_format = "JPEG"
     img.save()
-    img.filepath = resized
-    img.reload()
+    # Packed GLB images keep their original bytes even after scale(); replace the
+    # datablock with a fresh copy of the resized file so the exporter embeds it.
+    new_img = bpy.data.images.load(resized)
+    new_img.pack()
+    for mat in bpy.data.materials:
+        if not mat or not mat.node_tree:
+            continue
+        for node in mat.node_tree.nodes:
+            if node.type == "TEX_IMAGE" and node.image is img:
+                node.image = new_img
+    bpy.data.images.remove(img)
     print(f"[tex] {os.path.basename(resized)} {w}x{h} {os.path.getsize(resized)/1e6:.2f} MB")
 
 # Decimate to the same budget as the original model so the window stays light.
@@ -124,6 +142,18 @@ if ratio < 1.0:
     bpy.ops.object.modifier_apply(modifier=mod.name)
 print(f"[decimate] ratio={ratio:.3f} -> verts={len(model.data.vertices)} "
       f"polys={len(model.data.polygons)}")
+
+if TARGET_HEIGHT > 0:
+    bpy.context.view_layer.update()
+    height = model.dimensions.z
+    if height <= 0:
+        raise SystemExit("cannot fit height: model has no Z extent")
+    s = TARGET_HEIGHT / height
+    model.scale = tuple(v * s for v in model.scale)
+    bpy.context.view_layer.objects.active = model
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    bpy.context.view_layer.update()
+    print(f"[scale] z={height:.4f} -> {model.dimensions.z:.4f} (x{s:.4f})")
 
 os.makedirs(os.path.dirname(os.path.abspath(OUT)), exist_ok=True)
 kwargs = dict(

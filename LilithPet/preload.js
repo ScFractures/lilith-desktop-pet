@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('pet', {
   dragEnd: () => ipcRenderer.send('drag-end'),
   walkTo: (targetX, speed) => ipcRenderer.send('walk-to', targetX, speed),
   walkStop: () => ipcRenderer.send('walk-stop'),
+  reportPetBody: (rect) => ipcRenderer.send('pet-body', rect),
   showMenu: (at) => ipcRenderer.send('context-menu', at),
   getInfo: () => ipcRenderer.invoke('get-info'),
   readAsset: (relPath) => ipcRenderer.invoke('read-asset', relPath),

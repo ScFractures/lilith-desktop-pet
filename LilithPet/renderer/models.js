@@ -45,6 +45,9 @@
       keyKeepPh: '已保存，留空保持不变',
       keyHint: 'Key 只保存在本机配置里，并且只会发送到上面填写的 Base URL。',
       keyHintEdit: '已保存的 Key 不会显示。留空则继续使用原 Key，输入新值则覆盖。',
+      toolsLabel: '允许工具调用',
+      toolsHint: '启用后，对话窗口会让该模型调用终端、读写文件等工具；权限由对话窗口的模式和工作目录控制。',
+      badgeTools: '工具',
       listTitle: '已添加的模型',
       listEmpty: '还没有自定义模型。填写下面的表单添加第一个。',
       addTitle: '添加模型',
@@ -144,6 +147,9 @@
       keyKeepPh: 'Saved — leave blank to keep it',
       keyHint: 'The key is stored only in the local config and sent only to the Base URL above.',
       keyHintEdit: 'The saved key is not shown. Leave blank to keep it, or type a new one to replace it.',
+      toolsLabel: 'Allow tool calls',
+      toolsHint: 'When enabled, the chat window lets this model use terminal and file tools; permissions follow the chat mode and workspace.',
+      badgeTools: 'Tools',
       listTitle: 'Added models',
       listEmpty: 'No custom models yet. Add the first one below.',
       addTitle: 'Add model',
@@ -405,6 +411,8 @@
     $('name').placeholder = t('namePh');
     $('model-id').placeholder = t('modelPh');
     $('base-url').placeholder = t('basePh');
+    $('lbl-tools').textContent = t('toolsLabel');
+    $('tools-hint').textContent = t('toolsHint');
     $('footnote').textContent = t('footnote');
     setFetchBusy(fetchBusy);
     testBtn.textContent = t('test');
@@ -454,6 +462,7 @@
           fill(t('badgeReasoning'), { level: effortShort(model.effort) })
         ));
       }
+      if (model.tools) titleRow.appendChild(makeElement('span', 'badge type-responses', t('badgeTools')));
       if (model.legacy) titleRow.appendChild(makeElement('span', 'badge legacy', t('legacy')));
 
       info.appendChild(titleRow);
@@ -500,6 +509,7 @@
       baseUrl: $('base-url').value.trim(),
       apiKey: $('api-key').value,
       effort: effortEl.value || '',
+      tools: $('tools').checked,
     };
     if (selectedMeta) {
       payload.efforts = Array.isArray(selectedMeta.efforts) ? selectedMeta.efforts : null;
@@ -625,6 +635,7 @@
     typeEl.value = 'openai';
     apiEl.value = 'chat';
     effortEl.value = '';
+    $('tools').checked = false;
     syncTypeFields();
     updateFormChrome();
     refreshDepthInfo();
@@ -645,6 +656,7 @@
     $('model-id').value = model.model;
     $('base-url').value = model.baseUrl;
     $('api-key').value = '';
+    $('tools').checked = model.tools === true;
     clearModelChoices();
     updateFormChrome();
     setStatus('keyHintEdit', null, '');

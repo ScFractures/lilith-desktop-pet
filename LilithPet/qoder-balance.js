@@ -29,13 +29,38 @@ function normalizeStatusline(data) {
   const credits = data && data.credits;
   if (!credits || typeof credits.total_remaining !== 'number') return null;
   const userQuota = credits.user_quota || {};
+  const userRemaining = Number.isFinite(userQuota.remaining)
+    ? userQuota.remaining
+    : Number.isFinite(userQuota.total) && Number.isFinite(userQuota.used)
+      ? userQuota.total - userQuota.used
+      : null;
+  // A cap:-1 org_resource_package is the "unlimited" placeholder and reports a
+  // huge remaining; only fold real packages (e.g. the 2000 bonus credits) in.
+  const org = credits.org_resource_package || {};
+  const orgFinite = Number.isFinite(org.cap) && org.cap >= 0;
+  const orgRemaining = orgFinite
+    ? Number.isFinite(org.remaining)
+      ? org.remaining
+      : Number.isFinite(org.used) ? Math.max(0, org.cap - org.used) : null
+    : null;
+  const total = Number.isFinite(userQuota.total) || orgFinite
+    ? (Number.isFinite(userQuota.total) ? userQuota.total : 0) + (orgFinite ? org.cap : 0)
+    : null;
+  const used = Number.isFinite(userQuota.used) || (orgFinite && Number.isFinite(org.used))
+    ? (Number.isFinite(userQuota.used) ? userQuota.used : 0)
+      + (orgFinite && Number.isFinite(org.used) ? org.used : 0)
+    : null;
   return {
-    remaining: credits.total_remaining,
-    total: Number.isFinite(userQuota.total) ? userQuota.total : null,
-    used: Number.isFinite(userQuota.used) ? userQuota.used : null,
-    usedPercentage: Number.isFinite(credits.total_usage_percentage)
-      ? credits.total_usage_percentage
-      : Number.isFinite(userQuota.percentage) ? userQuota.percentage : null,
+    remaining: userRemaining !== null || orgRemaining !== null
+      ? (userRemaining ?? 0) + (orgRemaining ?? 0)
+      : credits.total_remaining,
+    total,
+    used,
+    usedPercentage: Number.isFinite(total) && total > 0 && Number.isFinite(used)
+      ? (used / total) * 100
+      : Number.isFinite(credits.total_usage_percentage)
+        ? credits.total_usage_percentage
+        : Number.isFinite(userQuota.percentage) ? userQuota.percentage : null,
     isQuotaExceeded: credits.is_quota_exceeded === true,
     expiresAt: Number.isFinite(credits.expires_at) ? credits.expires_at : null,
     unit: typeof credits.unit === 'string' && credits.unit ? credits.unit : 'credits',
