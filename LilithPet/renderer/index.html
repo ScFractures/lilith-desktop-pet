@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-n8+jxQQiFpXtbzq1WD+NmksgJ3pcK63X7EQmwa0D1nE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-n8+jxQQiFpXtbzq1WD+NmksgJ3pcK63X7EQmwa0D1nE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' file:; connect-src 'self' data: blob:" />
 <title>Lilith</title>
 <style>
   html, body {
@@ -145,6 +145,7 @@
   <canvas id="scene"></canvas>
   <div id="bubble"><div id="bubbletext"></div></div>
   <div id="zzz"><span>z</span><span>z</span><span>Z</span></div>
+  <script src="./voice-data.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
