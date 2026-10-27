@@ -104,7 +104,9 @@ window.__pet = state;
 let L = null;
 let phrases = {};
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const PERSONA_BY_MODEL = { lilith: 'lilith', deepseek_m: 'deepseek_m', miku: 'miku' };
+const PERSONA_BY_MODEL = { lilith: 'lilith', deepseek_m: 'deepseek_m', deepseek_winter: 'deepseek_m', miku: 'miku' };
+// Some FBX exports aren't aligned to their local +X; nudge the winter model toward its left 10°
+const MODEL_YAW_OFFSET = { deepseek_winter: (10 * Math.PI) / 180 };
 
 function applyPersona(model = state.model) {
   if (!L) return;
@@ -167,12 +169,20 @@ async function loadModel(key) {
       }
     }
   });
-  model.rotation.y = -Math.PI / 2;
+  model.rotation.y = -Math.PI / 2 + (MODEL_YAW_OFFSET[key] || 0);
   while (holder.children.length) {
     const old = holder.children[0];
     holder.remove(old);
     disposeObject(old);
   }
+  // Box3.setFromObject measures world space, so measure with the pet's pose
+  // neutralized: a yaw of π (sleeping) or ±π/2 (walking) would otherwise flip
+  // the centering offset and push the model out of the window.
+  const savedPetPos = pet.position.clone();
+  const savedPetRot = pet.rotation.clone();
+  pet.position.set(0, 0, 0);
+  pet.rotation.set(0, 0, 0);
+  pet.updateMatrixWorld(true);
   holder.scale.setScalar(1);
   holder.position.set(0, 0, 0);
   holder.add(model);
@@ -182,6 +192,9 @@ async function loadModel(key) {
   box = new THREE.Box3().setFromObject(holder);
   const c = box.getCenter(new THREE.Vector3());
   holder.position.set(-c.x, -box.min.y, -c.z);
+  pet.position.copy(savedPetPos);
+  pet.rotation.copy(savedPetRot);
+  pet.updateMatrixWorld(true);
   state.model = key;
   console.log(`model loaded: ${key} meshes=${meshCount} size=${size.x.toFixed(3)},${size.y.toFixed(3)},${size.z.toFixed(3)}`);
   return true;
