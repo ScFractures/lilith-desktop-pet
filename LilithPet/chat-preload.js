@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('qoder', {
   setModel: (model) => ipcRenderer.invoke('qoder-chat-set-model', model),
   setMode: (mode) => ipcRenderer.invoke('qoder-chat-set-mode', mode),
   chooseWorkspace: () => ipcRenderer.invoke('qoder-chat-choose-workspace'),
+  imageData: (file) => ipcRenderer.invoke('qoder-chat-image-data', file),
+  saveImage: (file) => ipcRenderer.invoke('qoder-chat-image-save', file),
   openModels: () => ipcRenderer.invoke('open-models'),
   getLang: () => ipcRenderer.invoke('i18n-get'),
   close: () => ipcRenderer.invoke('qoder-chat-close'),

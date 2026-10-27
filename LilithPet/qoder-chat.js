@@ -19,6 +19,16 @@ const MAX_NOTE = 500;
 const MAX_TOOL_TEXT = 4000;
 const MAX_TOOL_ROUNDS = 100;
 const MAX_TOOL_CALLS = 500;
+const MAX_IMAGE_PROMPT = 750;
+const IMAGE_MARK_RE = /```(?:image|img)\b\s*([\s\S]*?)```/i;
+const IMAGE_GUIDE = [
+  'App capability: the app can render generated images.',
+  'When the user asks you to draw, design or generate a picture, output a fenced code block tagged image containing a detailed English image prompt, for example:',
+  '```image',
+  'a chibi girl in a snowy park, soft winter light',
+  '```',
+  'The app renders the picture below your reply. Do not output markdown images or image URLs.',
+].join('\n');
 const TITLE_TIMEOUT_MS = 30000;
 const RUN_LIMIT_MS = 12 * 60 * 60 * 1000;
 const MODELS_TTL_MS = 12 * 60 * 60 * 1000;
@@ -172,6 +182,20 @@ function normalizeFiles(input) {
   return input.map(normalizeFile).filter(Boolean).slice(0, MAX_FILES);
 }
 
+function normalizeImage(input) {
+  if (!input || typeof input !== 'object') return null;
+  const prompt = typeof input.prompt === 'string'
+    ? input.prompt.replace(/\s+/g, ' ').trim().slice(0, MAX_IMAGE_PROMPT) : '';
+  if (typeof input.file === 'string' && input.file && !/[\\/]/.test(input.file)) {
+    return { prompt, file: input.file.slice(0, 160), state: 'ready' };
+  }
+  if (input.state === 'pending' || input.state === 'error') {
+    // A pending image means the app exited before generation finished.
+    return { prompt, state: 'error', error: String(input.error || 'interrupted').slice(0, 80) };
+  }
+  return null;
+}
+
 function fileNames(message) {
   return Array.isArray(message.files) ? message.files.map((file) => file.name).join(', ') : '';
 }
@@ -179,12 +203,15 @@ function fileNames(message) {
 function qoderPrompt(message) {
   const text = String(message.text || '').trim();
   const files = Array.isArray(message.files) ? message.files : [];
-  if (!files.length) return text;
-  const labels = files.map((file) => (typeof file.path === 'string' && file.path ? file.path : file.name));
-  const note = files.length === 1
-    ? `Attached file: ${labels[0]}`
-    : `Attached files: ${labels.join(', ')}`;
-  return text ? `${text}\n\n${note}` : note;
+  let prompt = text;
+  if (files.length) {
+    const labels = files.map((file) => (typeof file.path === 'string' && file.path ? file.path : file.name));
+    const note = files.length === 1
+      ? `Attached file: ${labels[0]}`
+      : `Attached files: ${labels.join(', ')}`;
+    prompt = prompt ? `${prompt}\n\n${note}` : note;
+  }
+  return prompt ? `${prompt}\n\n${IMAGE_GUIDE}` : IMAGE_GUIDE;
 }
 
 function normalizeMessages(input) {
@@ -210,6 +237,8 @@ function normalizeMessages(input) {
       if (typeof message.reasoning === 'string' && message.reasoning.trim()) {
         entry.reasoning = message.reasoning;
       }
+      const image = normalizeImage(message.image);
+      if (image) entry.image = image;
       if (message.error === true) {
         entry.error = true;
         entry.errorText = String(message.errorText || '').slice(0, 4000);
@@ -485,7 +514,7 @@ function loadModelCache(file) {
   return { models: FALLBACK_MODELS.slice(), fetchedAt: 0 };
 }
 
-function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
+function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent }) {
   const history = loadHistory(stateFile);
   let state = history.conversations.find((entry) => entry.id === history.activeConversationId);
   const cache = loadModelCache(modelsFile);
@@ -556,6 +585,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     if (Array.isArray(message.files) && message.files.length) {
       copy.files = message.files.map(publicFile).filter(Boolean);
     }
+    if (message.image) copy.image = { ...message.image };
     return copy;
   }
 
@@ -741,6 +771,32 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     return { ...tool };
   }
 
+  function updateImage(messageId, image) {
+    let found = false;
+    for (const conversation of history.conversations) {
+      const message = conversation.messages.find((entry) => entry.id === messageId);
+      if (!message) continue;
+      message.image = { ...image };
+      found = true;
+    }
+    if (!found) return;
+    save();
+    if (state.messages.some((entry) => entry.id === messageId)) {
+      emit({ type: 'image', messageId, image: { ...image } });
+    }
+  }
+
+  function startImage(messageId, prompt) {
+    imagegen.generate(prompt).then(
+      (result) => updateImage(messageId, { prompt, state: 'ready', file: result.file }),
+      (error) => updateImage(messageId, {
+        prompt,
+        state: 'error',
+        error: String((error && error.message) || error).slice(0, 80),
+      })
+    );
+  }
+
   function finishRun(run, outcome = {}) {
     if (run.finished) return;
     run.finished = true;
@@ -749,7 +805,16 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     if (run.child) killProcessGroup(run.child);
     if (activeRun === run) activeRun = null;
 
-    const text = runText(run).trim();
+    let text = runText(run).trim();
+    let image = null;
+    if (imagegen) {
+      const match = text.match(IMAGE_MARK_RE);
+      if (match) {
+        const prompt = match[1].replace(/\s+/g, ' ').trim().slice(0, MAX_IMAGE_PROMPT);
+        text = `${text.slice(0, match.index)}${text.slice(match.index + match[0].length)}`.trim();
+        if (prompt) image = { prompt, state: 'pending' };
+      }
+    }
     const errorText = outcome.error ? String(outcome.error).slice(0, 4000) : '';
     const stopped = outcome.stopped === true;
     const durationMs = Number.isFinite(run.durationMs)
@@ -769,6 +834,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       model: run.modelLabel || state.model,
     };
     if (run.reasoning && run.reasoning.trim()) message.reasoning = run.reasoning.trim();
+    if (image) message.image = image;
     if (stopped) message.interrupted = true;
     if (errorText) {
       message.error = true;
@@ -785,6 +851,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
       emit({ type: 'done', message, state: getState() });
     }
 
+    if (image && !errorText && !stopped) startImage(run.messageId, image.prompt);
     if (!errorText) maybeAutoTitle(state);
   }
 
@@ -1214,6 +1281,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, onEvent }) {
     const history = customStore
       ? customStore.buildHistory(state.messages)
       : state.messages.map((message) => ({ role: message.role, content: message.text }));
+    if (imagegen) history.unshift({ role: 'system', content: IMAGE_GUIDE });
 
     run.hardTimer = setTimeout(() => {
       if (run.finished) return;

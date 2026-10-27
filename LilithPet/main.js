@@ -7,6 +7,7 @@ const { STRINGS, normalizeLang, langFromLocale } = require('./i18n');
 const { queryQoderBalance } = require('./qoder-balance');
 const { createQoderChat } = require('./qoder-chat');
 const { createCustomModelStore } = require('./custom-models');
+const { createImagegen } = require('./imagegen');
 const windowAvoidance = require('./window-avoidance');
 const { createWindowObstacleWatcher, supported: windowAvoidSupported } = require('./window-obstacles');
 
@@ -29,6 +30,7 @@ let chatWin = null;
 let modelsWin = null;
 let qoderChat = null;
 let customModels = null;
+let imagegen = null;
 let tray = null;
 let cfgFile = null;
 const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, qoderChatBounds: null, avoidWindows: true, sound: true };
@@ -508,6 +510,27 @@ ipcMain.handle('qoder-chat-choose-workspace', async () => {
     return { ok: false, error: 'canceled' };
   }
   return qoderChat.setWorkspace(result.filePaths[0]);
+});
+
+ipcMain.handle('qoder-chat-image-data', (_e, file) => (imagegen ? imagegen.dataUrl(file) : null));
+
+ipcMain.handle('qoder-chat-image-save', async (_e, file) => {
+  const source = imagegen ? imagegen.filePath(file) : null;
+  if (!source) return { ok: false, error: 'missing' };
+  const options = {
+    title: T().imageSaveTitle,
+    defaultPath: path.join(app.getPath('downloads'), path.basename(source)),
+  };
+  const result = chatWin && !chatWin.isDestroyed()
+    ? await dialog.showSaveDialog(chatWin, options)
+    : await dialog.showSaveDialog(options);
+  if (result.canceled || !result.filePath) return { ok: false, error: 'canceled' };
+  try {
+    fs.copyFileSync(source, result.filePath);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'copy' };
+  }
 });
 
 ipcMain.handle('qoder-chat-close', () => {
@@ -1617,10 +1640,12 @@ app.whenReady().then(() => {
       if (qoderChat) qoderChat.refreshCustomModels();
     },
   });
+  imagegen = createImagegen({ dir: path.join(app.getPath('userData'), 'images') });
   qoderChat = createQoderChat({
     stateFile: path.join(app.getPath('userData'), 'qoder-chat.json'),
     modelsFile: path.join(app.getPath('userData'), 'qoder-models.json'),
     customStore: customModels,
+    imagegen,
     onEvent: (event) => {
       if (chatWin && !chatWin.isDestroyed()) chatWin.webContents.send('qoder-chat-event', event);
     },

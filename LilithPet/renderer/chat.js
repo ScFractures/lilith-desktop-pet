@@ -83,6 +83,11 @@
       errorPrefix: '错误：',
       interrupted: '已中断。',
       emptyReply: '（没有返回文本）',
+      imageGenerating: '正在生成图片…',
+      imageLoading: '正在载入图片…',
+      imageFailed: '图片生成失败（{code}）',
+      imageDownload: '下载图片',
+      imageSaved: '已保存',
       toolInput: '输入',
       toolResult: '结果',
       toolRunning: '运行中',
@@ -187,6 +192,11 @@
       errorPrefix: 'Error: ',
       interrupted: 'Interrupted.',
       emptyReply: '(no text returned)',
+      imageGenerating: 'Generating image…',
+      imageLoading: 'Loading image…',
+      imageFailed: 'Image generation failed ({code})',
+      imageDownload: 'Download image',
+      imageSaved: 'Saved',
       toolInput: 'Input',
       toolResult: 'Result',
       toolRunning: 'running',
@@ -281,6 +291,7 @@
   let draftReasonTextEl = null;
   let draftTools = [];
   let statusResetTimer = null;
+  const imageCache = new Map();
   let forceScroll = false;
   let draftQueued = false;
   let historyOpen = window.innerWidth >= 760;
@@ -877,6 +888,62 @@
     return details;
   }
 
+  function makeImageElement(image) {
+    if (!image || !image.prompt) return null;
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-image';
+    if (image.state === 'ready' && image.file) {
+      const img = document.createElement('img');
+      img.className = 'generated-image';
+      img.alt = image.prompt;
+      img.title = image.prompt;
+      const cached = imageCache.get(image.file);
+      if (cached) {
+        img.src = cached;
+      } else {
+        const note = document.createElement('div');
+        note.className = 'image-note';
+        note.textContent = t('imageLoading');
+        wrap.appendChild(note);
+        window.qoder.imageData(image.file).then((url) => {
+          if (typeof url === 'string' && url) {
+            imageCache.set(image.file, url);
+            img.src = url;
+            note.remove();
+          } else {
+            note.textContent = t('imageFailed', { code: 'missing' });
+          }
+        }).catch(() => {
+          note.textContent = t('imageFailed', { code: 'missing' });
+        });
+      }
+      wrap.appendChild(img);
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.className = 'image-download';
+      save.textContent = t('imageDownload');
+      save.addEventListener('click', () => {
+        window.qoder.saveImage(image.file).then((res) => {
+          if (!res || !res.ok) return;
+          save.textContent = t('imageSaved');
+          setTimeout(() => { save.textContent = t('imageDownload'); }, 2000);
+        }).catch(() => {});
+      });
+      wrap.appendChild(save);
+    } else if (image.state === 'pending') {
+      const note = document.createElement('div');
+      note.className = 'image-note';
+      note.textContent = t('imageGenerating');
+      wrap.appendChild(note);
+    } else {
+      const note = document.createElement('div');
+      note.className = 'image-note error';
+      note.textContent = t('imageFailed', { code: image.error || 'unknown' });
+      wrap.appendChild(note);
+    }
+    return wrap;
+  }
+
   function makeMessageElement(message) {
     const row = document.createElement('div');
     row.className = `msg ${message.role}`;
@@ -911,8 +978,11 @@
     const textEl = document.createElement('div');
     textEl.className = 'assistant-text';
     if (message.text) renderRichText(textEl, message.text, false);
-    else if (!(message.tools && message.tools.length) && !message.error) textEl.textContent = t('emptyReply');
+    else if (!(message.tools && message.tools.length) && !message.error && !message.image) textEl.textContent = t('emptyReply');
     body.appendChild(textEl);
+
+    const imageEl = makeImageElement(message.image);
+    if (imageEl) body.appendChild(imageEl);
 
     if (message.tools && message.tools.length) {
       body.appendChild(makeToolsGroup(message.tools));
@@ -1262,6 +1332,14 @@
         applyState(event.state);
         setStatus(t('stopped'), 'transient');
         break;
+      case 'image': {
+        const message = state.messages.find((entry) => entry.id === event.messageId);
+        if (message) {
+          message.image = event.image;
+          renderAll();
+        }
+        break;
+      }
       case 'error':
         applyState(event.state);
         setStatus(t('failed'), 'error');
