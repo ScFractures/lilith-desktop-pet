@@ -84,6 +84,7 @@ const state = {
   wiggleLeft: 0,
   squash: { x: 0, v: 0 },
   idleTimer: 3.5,
+  idleSayTimer: 600,
   dragging: false,
   pendingDrag: null,
   hover: false,
@@ -95,6 +96,7 @@ const state = {
   lang: 'zh',
   model: null,
   persona: null,
+  sound: true,
 };
 window.__pet = state;
 
@@ -118,6 +120,10 @@ function applyDict(payload) {
   applyPersona();
 }
 window.pet.on('i18n', (payload) => applyDict(payload));
+window.pet.on('sound-state', (on) => {
+  state.sound = !!on;
+  if (!on && audioEl && !audioEl.paused) audioEl.pause();
+});
 
 function disposeObject(root) {
   root.traverse((o) => {
@@ -242,12 +248,59 @@ function setInteractive(v) {
 }
 
 let bubbleTimer = null;
-function say(text, duration = 2300) {
+let bubbleToken = 0;
+let audioEl = null;
+
+function voicePath(text) {
+  if (state.sound === false) return null;
+  const data = window.VOICE_DATA;
+  const lang = data && data[state.lang];
+  const map = lang && lang[state.persona];
+  return (map && map[text]) || null;
+}
+
+function playVoice(text) {
+  const src = voicePath(text);
+  if (!audioEl) {
+    audioEl = new Audio();
+    audioEl.preload = 'auto';
+    audioEl.volume = 0.9;
+  }
+  if (!src) {
+    if (!audioEl.paused) audioEl.pause();
+    return null;
+  }
+  audioEl.src = src;
+  try { audioEl.currentTime = 0; } catch {}
+  audioEl.play().catch(() => {});
+  return audioEl;
+}
+
+function showBubble(text, ms) {
   bubbleTextEl.textContent = text;
   bubbleTextEl.scrollTop = 0;
   bubbleEl.classList.add('show');
   clearTimeout(bubbleTimer);
-  bubbleTimer = setTimeout(() => bubbleEl.classList.remove('show'), duration);
+  bubbleTimer = setTimeout(() => bubbleEl.classList.remove('show'), ms);
+}
+
+function say(text, duration = 2300) {
+  let ms = duration;
+  const token = ++bubbleToken;
+  const audio = playVoice(text);
+  if (audio) {
+    const known = audio.duration;
+    if (Number.isFinite(known) && known > 0) {
+      ms = Math.max(ms, known * 1000 + 250);
+    } else {
+      audio.addEventListener('loadedmetadata', () => {
+        if (token !== bubbleToken) return;
+        const d = audio.duration;
+        if (Number.isFinite(d) && d > 0) showBubble(text, Math.max(ms, d * 1000 + 250));
+      }, { once: true });
+    }
+  }
+  showBubble(text, ms);
 }
 
 function anchorPoint() {
@@ -364,12 +417,10 @@ function doIdleAction() {
     return;
   }
   const r = Math.random();
-  if (r < 0.25) {
+  if (r < 0.4) {
     hop(0.55 + Math.random() * 0.4);
-  } else if (r < 0.75) {
-    doWalk();
   } else {
-    say(pick(phrases.idle));
+    doWalk();
   }
 }
 
@@ -501,6 +552,11 @@ function update(dt, t) {
     if (state.idleTimer <= 0) {
       scheduleIdle();
       doIdleAction();
+    }
+    state.idleSayTimer -= dt;
+    if (state.idleSayTimer <= 0) {
+      state.idleSayTimer = 540 + Math.random() * 120;
+      say(pick(phrases.idle));
     }
   }
 
@@ -699,6 +755,7 @@ window.pet.on('pet-model', async (key) => {
   }
   try {
     const info = await window.pet.getInfo().catch(() => null);
+    if (info) state.sound = info.sound !== false;
     await loadModel((info && info.model) || 'lilith');
     applyPersona(state.model);
     state.loaded = true;

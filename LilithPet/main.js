@@ -30,7 +30,7 @@ let customChat = null;
 let customModels = null;
 let tray = null;
 let cfgFile = null;
-const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, chatBounds: null, avoidWindows: true };
+const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, chatBounds: null, avoidWindows: true, sound: true };
 
 const T = () => STRINGS[settings.lang] || STRINGS.zh;
 
@@ -86,6 +86,7 @@ function loadCfg() {
   if (!WINDOW_SIZES[settings.size]) settings.size = 'medium';
   if (!MODELS[settings.model]) settings.model = DEFAULT_MODEL;
   if (typeof settings.avoidWindows !== 'boolean') settings.avoidWindows = true;
+  if (typeof settings.sound !== 'boolean') settings.sound = true;
   settings.lang = normalizeLang(settings.lang) || langFromLocale(app.getLocale());
 }
 
@@ -858,6 +859,13 @@ function setAvoidWindows(on) {
   refreshTrayMenu();
 }
 
+function setSound(on) {
+  settings.sound = !!on;
+  saveCfgSoon();
+  send('sound-state', settings.sound);
+  refreshTrayMenu();
+}
+
 function applySize(size) {
   if (!WINDOW_SIZES[size]) return;
   settings.size = size;
@@ -1047,6 +1055,12 @@ function trayMenuTemplate() {
     },
     modelSubmenu(refreshTrayMenu),
     languageSubmenu(refreshTrayMenu),
+    {
+      label: t.menuSound,
+      type: 'checkbox',
+      checked: settings.sound,
+      click: (item) => setSound(item.checked),
+    },
     ...(windowAvoidSupported ? [{
       label: t.menuAvoidWindows,
       type: 'checkbox',
@@ -1133,7 +1147,7 @@ ipcMain.on('pet-body', (_e, rect) => {
 ipcMain.handle('get-info', () => {
   const b = win.getBounds();
   const wa = workArea(b);
-  return { bounds: b, workArea: wa, size: settings.size, floorInset: FLOOR_INSET, model: settings.model };
+  return { bounds: b, workArea: wa, size: settings.size, floorInset: FLOOR_INSET, model: settings.model, sound: settings.sound };
 });
 
 ipcMain.handle('read-asset', (_e, relPath) => {
@@ -1169,6 +1183,12 @@ ipcMain.on('context-menu', (_e, at) => {
     },
     modelSubmenu(),
     languageSubmenu(),
+    {
+      label: t.menuSound,
+      type: 'checkbox',
+      checked: settings.sound,
+      click: (item) => setSound(item.checked),
+    },
     ...(windowAvoidSupported ? [{
       label: t.menuAvoidWindows,
       type: 'checkbox',
