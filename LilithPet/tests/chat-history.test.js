@@ -543,3 +543,76 @@ test('Qoder models receive every attachment through --attachment, not in the pro
   assert.ok(argv.some((arg) => arg.startsWith(`读一下\n\nAttached files: ${firstPath}, ${secondPath}`)));
   assert.equal(argv.some((arg) => arg.includes('SECRET_CONTENT')), false);
 });
+
+test('model switches keep visible history and seed a fresh CLI session instead of resuming stale context', async (t) => {
+  const store = mockStore();
+  const f = fixture(t, legacy(), store);
+  const argsFile = path.join(f.dir, 'switch-args.bin');
+  const fake = path.join(f.dir, 'fake-switch-qoder.sh');
+  fs.writeFileSync(fake, [
+    '#!/bin/sh',
+    `printf '%s\\0' "$@" > '${argsFile}'`,
+    'printf \'%s\\n\' \'{"type":"system","subtype":"init","session_id":"new-cli-session"}\'',
+    'printf \'%s\\n\' \'{"type":"result","subtype":"success","result":"CLI remembers"}\'',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const previousCli = process.env.QODERCN_CLI;
+  process.env.QODERCN_CLI = fake;
+  t.after(() => {
+    if (previousCli === undefined) delete process.env.QODERCN_CLI;
+    else process.env.QODERCN_CLI = previousCli;
+  });
+  const original = f.chat.getState();
+  f.chat.setModel('custom:mock');
+  assert.equal(f.chat.getState().sessionId, null);
+  f.chat.send('记住暗号是橘子');
+  await waitIdle(f.chat);
+  assert.deepEqual(store.requests[0].map((m) => m.content), ['原有对话', '原有回答', '记住暗号是橘子']);
+
+  f.chat.setModel('DeepSeek-Flash');
+  f.restart(); // The invalidation and history survive a restart.
+  f.chat.send('暗号是什么？');
+  await waitIdle(f.chat);
+  const argv = fs.readFileSync(argsFile, 'utf8').split('\0');
+  assert.ok(argv.includes('--session-id'));
+  assert.ok(!argv.includes('--resume'));
+  const prompt = argv[argv.indexOf('-p') + 1];
+  for (const text of ['原有对话', '原有回答', '记住暗号是橘子', 'complete reply', '暗号是什么？']) {
+    assert.ok(prompt.includes(text), text);
+  }
+  assert.equal(prompt.split('暗号是什么？').length - 1, 1);
+  assert.equal(f.chat.getState().conversationId, original.conversationId);
+  assert.equal(f.chat.getState().sessionId, 'new-cli-session');
+
+  // Staying on the same model keeps the native session; don't duplicate history.
+  f.chat.setModel('DeepSeek-Flash');
+  f.chat.send('继续');
+  await waitIdle(f.chat);
+  const resumed = fs.readFileSync(argsFile, 'utf8').split('\0');
+  assert.ok(resumed.includes('--resume'));
+  assert.ok(!resumed[resumed.indexOf('-p') + 1].includes('<conversation_history>'));
+
+  // Switching between two CLI models also seeds the conversation.
+  f.chat.setModel('Kimi-K3');
+  f.chat.send('换一个模型继续');
+  await waitIdle(f.chat);
+  const switched = fs.readFileSync(argsFile, 'utf8').split('\0');
+  assert.ok(!switched.includes('--resume'));
+  assert.ok(switched[switched.indexOf('-p') + 1].includes('CLI remembers'));
+
+  f.chat.setModel('custom:mock');
+  f.chat.send('回到自定义模型');
+  await waitIdle(f.chat);
+  assert.ok(store.requests.at(-1).some((m) => m.content === 'CLI remembers'));
+});
+
+test('legacy custom conversations invalidate CLI sessions when sending, even without switching models', async (t) => {
+  const store = mockStore();
+  const f = fixture(t, { ...legacy(), model: 'custom:mock' }, store);
+  assert.equal(f.chat.getState().sessionId, 'cli-session-original');
+  f.chat.send('新的一轮');
+  await waitIdle(f.chat);
+  assert.equal(f.chat.getState().sessionId, null);
+  f.restart();
+  assert.equal(f.chat.getState().sessionId, null);
+});
