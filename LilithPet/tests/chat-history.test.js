@@ -616,3 +616,27 @@ test('legacy custom conversations invalidate CLI sessions when sending, even wit
   f.restart();
   assert.equal(f.chat.getState().sessionId, null);
 });
+
+test('continues past 100 rounds and 500 calls and preserves full tool results', async (t) => {
+  const store = mockStore({ tools: true });
+  let rounds = 0;
+  store.toolTurn = async () => {
+    if (++rounds > 102) return { text: 'done', toolCalls: [] };
+    return { text: '', toolCalls: Array.from({ length: 5 }, (_, i) => ({
+      id: `call-${rounds}-${i}`, name: 'read_file', input: { path: 'tool-content.txt', limit: 0 },
+    })) };
+  };
+  const f = fixture(t, undefined, store);
+  const content = 'long tool output '.repeat(400);
+  fs.writeFileSync(path.join(f.dir, 'tool-content.txt'), content);
+  f.chat.setWorkspace(f.dir);
+  f.chat.setModel('custom:mock');
+  f.chat.send('keep working');
+  await waitIdle(f.chat);
+  assert.equal(rounds, 103);
+  const answer = f.chat.getState().messages.at(-1);
+  assert.equal(answer.tools.length, 510);
+  assert.ok(answer.tools.every((tool) => !tool.isError && tool.result.endsWith(content)));
+  f.restart();
+  assert.deepEqual(f.chat.getState().messages.at(-1).tools, answer.tools);
+});

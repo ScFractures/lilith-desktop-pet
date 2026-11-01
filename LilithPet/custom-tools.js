@@ -4,14 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const DEFAULT_COMMAND_MS = 30000;
-const MAX_COMMAND_MS = 180000;
-const MAX_OUTPUT = 30000;
-const MAX_READ_BYTES = 2 * 1024 * 1024;
-const MAX_READ_CHARS = 120000;
-const MAX_WRITE_CHARS = 1000000;
-const MAX_LIST_ENTRIES = 400;
-
 const TOOLS = [
   {
     name: 'run_command',
@@ -23,7 +15,7 @@ const TOOLS = [
         command: { type: 'string', description: 'Shell command to execute.' },
         timeout_ms: {
           type: 'integer',
-          description: 'Timeout in milliseconds. Default 30000, maximum 180000.',
+          description: 'Optional timeout in milliseconds. Omit or use 0 for no timeout.',
         },
       },
       required: ['command'],
@@ -39,7 +31,7 @@ const TOOLS = [
       properties: {
         path: { type: 'string', description: 'File path relative to the workspace.' },
         offset: { type: 'integer', description: 'First line to return, 1-based. Default 1.' },
-        limit: { type: 'integer', description: 'Maximum number of lines to return. Default 400, maximum 2000.' },
+        limit: { type: 'integer', description: 'Number of lines to return. Default 400; use 0 for all remaining lines. No maximum.' },
       },
       required: ['path'],
       additionalProperties: false,
@@ -67,7 +59,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         path: { type: 'string', description: 'Directory path relative to the workspace. Default ".".' },
-        depth: { type: 'integer', description: 'Directory depth to walk. Default 2, maximum 3.' },
+        depth: { type: 'integer', description: 'Directory depth to walk. Default 2; use 0 for all depths. No maximum.' },
       },
       additionalProperties: false,
     },
@@ -146,7 +138,7 @@ function runCommand(input, options) {
       resolve(failure('run_command requires a non-empty "command".'));
       return;
     }
-    const timeoutMs = clampInt(input.timeout_ms, DEFAULT_COMMAND_MS, 1000, MAX_COMMAND_MS);
+    const timeoutMs = clampInt(input.timeout_ms, 0, 0, Number.MAX_SAFE_INTEGER);
     const signal = options.signal || null;
     if (signal && signal.aborted) {
       resolve(failure('Command aborted.'));
@@ -173,7 +165,6 @@ function runCommand(input, options) {
 
     let stdout = '';
     let stderr = '';
-    let truncated = false;
     let done = false;
     let timedOut = false;
     let aborted = false;
@@ -200,41 +191,36 @@ function runCommand(input, options) {
     };
 
     if (signal) signal.addEventListener('abort', onAbort, { once: true });
-    timer = setTimeout(() => {
-      timedOut = true;
-      stop();
-    }, timeoutMs);
+    // Chain long explicit timeouts instead of overflowing Node's 32-bit timer delay.
+    if (timeoutMs > 0) {
+      const deadline = Date.now() + timeoutMs;
+      const checkDeadline = () => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          timedOut = true;
+          stop();
+        } else {
+          timer = setTimeout(checkDeadline, Math.min(remaining, 2147483647));
+        }
+      };
+      checkDeadline();
+    }
 
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      if (stdout.length >= MAX_OUTPUT) {
-        truncated = true;
-        return;
-      }
-      stdout += chunk.slice(0, MAX_OUTPUT - stdout.length);
-      if (stdout.length >= MAX_OUTPUT) truncated = true;
-    });
-    child.stderr.on('data', (chunk) => {
-      if (stderr.length >= MAX_OUTPUT) {
-        truncated = true;
-        return;
-      }
-      stderr += chunk.slice(0, MAX_OUTPUT - stderr.length);
-      if (stderr.length >= MAX_OUTPUT) truncated = true;
-    });
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
     child.on('error', (error) => finish(failure(`Failed to run command: ${error.message}`)));
     child.on('close', (code, signalName) => {
       const parts = [];
       if (stdout) parts.push(`stdout:\n${stdout}`);
       if (stderr) parts.push(`stderr:\n${stderr}`);
       if (!stdout && !stderr) parts.push('(no output)');
-      if (truncated) parts.push('(output truncated)');
       parts.push(`exit code: ${code == null ? 'none' : code}${signalName ? ` (signal ${signalName})` : ''}`);
       if (timedOut) parts.push(`command timed out after ${timeoutMs} ms`);
       if (aborted) parts.push('command aborted');
       finish({
-        content: parts.join('\n\n').slice(0, MAX_OUTPUT + 4000),
+        content: parts.join('\n\n'),
         isError: !!(timedOut || aborted || (typeof code === 'number' && code !== 0)),
       });
     });
@@ -246,17 +232,13 @@ function readFile(input, options) {
   const target = resolveWorkspacePath(workspace, input.path);
   const stat = fs.statSync(target);
   if (stat.isDirectory()) return failure('read_file needs a file, not a directory. Use list_files instead.');
-  if (stat.size > MAX_READ_BYTES) {
-    return failure(`File is ${stat.size} bytes; read_file supports up to ${MAX_READ_BYTES}. Use run_command with head/tail for larger files.`);
-  }
   const buffer = fs.readFileSync(target);
   if (buffer.subarray(0, 8192).includes(0)) return failure('Cannot read a binary file as text.');
   const allLines = buffer.toString('utf8').split('\n');
   const offset = clampInt(input.offset, 1, 1, allLines.length || 1);
-  const limit = clampInt(input.limit, 400, 1, 2000);
+  const limit = input.limit === 0 ? allLines.length : clampInt(input.limit, 400, 1, Number.MAX_SAFE_INTEGER);
   const slice = allLines.slice(offset - 1, offset - 1 + limit);
-  let body = slice.map((line, index) => `${offset + index}: ${line}`).join('\n');
-  if (body.length > MAX_READ_CHARS) body = `${body.slice(0, MAX_READ_CHARS)}\n… (truncated)`;
+  const body = slice.map((line, index) => `${offset + index}: ${line}`).join('\n');
   const range = `lines ${offset}-${offset + slice.length - 1} of ${allLines.length}`;
   return {
     content: `${relativeName(workspace, target)} (${range})\n${body}`,
@@ -267,9 +249,6 @@ function readFile(input, options) {
 function writeFile(input, options) {
   const workspace = fs.realpathSync(options.workspace);
   if (typeof input.content !== 'string') return failure('write_file requires a string "content".');
-  if (input.content.length > MAX_WRITE_CHARS) {
-    return failure(`Content is too large (${input.content.length} chars); the limit is ${MAX_WRITE_CHARS}.`);
-  }
   const target = resolveWorkspacePath(workspace, input.path);
   if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
     return failure('write_file target is a directory.');
@@ -286,10 +265,9 @@ function listFiles(input, options) {
   const workspace = fs.realpathSync(options.workspace);
   const root = resolveWorkspacePath(workspace, input.path);
   if (!fs.statSync(root).isDirectory()) return failure('list_files needs a directory path.');
-  const depth = clampInt(input.depth, 2, 1, 3);
+  const depth = input.depth === 0 ? Infinity : clampInt(input.depth, 2, 1, Number.MAX_SAFE_INTEGER);
   const lines = [];
   const walk = (dir, base, level) => {
-    if (lines.length >= MAX_LIST_ENTRIES) return;
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -299,7 +277,6 @@ function listFiles(input, options) {
     }
     entries.sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
-      if (lines.length >= MAX_LIST_ENTRIES) return;
       const rel = base ? `${base}/${entry.name}` : entry.name;
       const full = path.join(dir, entry.name);
       if (entry.isSymbolicLink()) {
@@ -316,7 +293,6 @@ function listFiles(input, options) {
     }
   };
   walk(root, relativeName(workspace, root) === '.' ? '' : relativeName(workspace, root), 1);
-  if (lines.length >= MAX_LIST_ENTRIES) lines.push(`… (limited to ${MAX_LIST_ENTRIES} entries)`);
   return {
     content: lines.length ? lines.join('\n') : '(empty directory)',
     isError: false,

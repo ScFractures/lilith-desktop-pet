@@ -17,9 +17,6 @@ const MAX_PROMPT = 20000;
 const MAX_FILES = 10;
 const MAX_FILE_CHARS = 300000;
 const MAX_NOTE = 500;
-const MAX_TOOL_TEXT = 4000;
-const MAX_TOOL_ROUNDS = 100;
-const MAX_TOOL_CALLS = 500;
 const MAX_IMAGE_PROMPT = 750;
 const IMAGE_MARK_RE = /```(?:image|img)\b\s*([\s\S]*?)```/i;
 const IMAGE_GUIDE = [
@@ -31,7 +28,6 @@ const IMAGE_GUIDE = [
   'The app renders the picture below your reply. Do not output markdown images or image URLs.',
 ].join('\n');
 const TITLE_TIMEOUT_MS = 30000;
-const RUN_LIMIT_MS = 12 * 60 * 60 * 1000;
 const MODELS_TTL_MS = 12 * 60 * 60 * 1000;
 
 const FALLBACK_MODELS = [
@@ -91,11 +87,6 @@ function findQoder() {
   return null;
 }
 
-function clip(value, max) {
-  const text = String(value == null ? '' : value);
-  return text.length > max ? `${text.slice(0, max)}\n… (${text.length - max} chars truncated)` : text;
-}
-
 function safeJson(value) {
   try {
     return JSON.stringify(value, null, 2);
@@ -131,8 +122,8 @@ function normalizeTool(tool) {
     id: String(tool.id || crypto.randomUUID()),
     name: String(tool.name || 'Tool').slice(0, 80),
     summary: String(tool.summary || '').slice(0, 300),
-    inputText: clip(tool.inputText || '', MAX_TOOL_TEXT),
-    result: clip(tool.result || '', MAX_TOOL_TEXT),
+    inputText: String(tool.inputText || ''),
+    result: String(tool.result || ''),
     isError: tool.isError === true,
     state: tool.state === 'running' ? 'running' : 'done',
   };
@@ -975,7 +966,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
             id: String(block.id || crypto.randomUUID()),
             name: String(block.name || 'Tool').slice(0, 80),
             summary: toolSummary(block.name, block.input),
-            inputText: clip(safeJson(block.input ?? {}), MAX_TOOL_TEXT),
+            inputText: safeJson(block.input ?? {}),
             result: '',
             isError: false,
             state: 'running',
@@ -1000,7 +991,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
           if (block?.type !== 'tool_result') continue;
           const tool = run.toolById.get(block.tool_use_id);
           if (!tool) continue;
-          tool.result = clip(toolContentText(block.content), MAX_TOOL_TEXT);
+          tool.result = toolContentText(block.content);
           tool.isError = block.is_error === true;
           tool.state = 'done';
           emit({
@@ -1104,21 +1095,12 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       return { ok: false, error: 'spawn-failed' };
     }
     run.child = child;
-    run.hardTimer = setTimeout(() => {
-      if (run.finished) return;
-      run.spawnError = 'timeout';
-      killProcessGroup(child);
-      setTimeout(() => finishRun(run, { error: 'qoder-timeout' }), 2200);
-    }, RUN_LIMIT_MS);
 
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
       if (run.finished) return;
       run.streamBuffer += chunk;
-      if (run.streamBuffer.length > 8 * 1024 * 1024) {
-        run.streamBuffer = run.streamBuffer.slice(-2 * 1024 * 1024);
-      }
       let index;
       while ((index = run.streamBuffer.indexOf('\n')) >= 0) {
         const line = run.streamBuffer.slice(0, index).trim();
@@ -1176,7 +1158,6 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       role: 'system',
       content: toolSystemPrompt(run.conversation.workspace, run.conversation.mode),
     });
-    let callCount = 0;
 
     const fail = (error) => {
       if (run.finished) return;
@@ -1196,12 +1177,8 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     };
 
     const loop = async () => {
-      for (let round = 0; ; round += 1) {
+      while (true) {
         if (run.finished) return;
-        if (round >= MAX_TOOL_ROUNDS) {
-          finishRun(run, { error: 'tool-round-limit' });
-          return;
-        }
         let textStarted = false;
         const turn = await customStore.toolTurn(entry.id, conversation, {
           signal: run.controller.signal,
@@ -1245,18 +1222,13 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
             finishRun(run, { stopped: true });
             return;
           }
-          callCount += 1;
-          if (callCount > MAX_TOOL_CALLS) {
-            finishRun(run, { error: 'tool-call-limit' });
-            return;
-          }
           const name = String(call.name || 'tool').slice(0, 80);
           const input = call.input && typeof call.input === 'object' ? call.input : {};
           const tool = {
             id: String(call.id || crypto.randomUUID()),
             name,
             summary: toolSummary(name, input),
-            inputText: clip(call.parseError && call.rawArguments ? call.rawArguments : safeJson(input), MAX_TOOL_TEXT),
+            inputText: String(call.parseError && call.rawArguments ? call.rawArguments : safeJson(input)),
             result: '',
             isError: false,
             state: 'running',
@@ -1280,7 +1252,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
             finishRun(run, { stopped: true });
             return;
           }
-          tool.result = clip(toolContentText(result && result.content), MAX_TOOL_TEXT);
+          tool.result = toolContentText(result && result.content);
           tool.isError = !!(result && result.isError);
           tool.state = 'done';
           emit({ type: 'tool-result', id: tool.id, result: tool.result, isError: tool.isError }, run.conversationId);
@@ -1336,15 +1308,6 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       ? customStore.buildHistory(conversation.messages)
       : conversation.messages.map((message) => ({ role: message.role, content: message.text }));
     if (imagegen) history.unshift({ role: 'system', content: IMAGE_GUIDE });
-
-    run.hardTimer = setTimeout(() => {
-      if (run.finished) return;
-      run.timedOut = true;
-      try { run.controller.abort(); } catch {}
-      setTimeout(() => {
-        if (!run.finished) finishRun(run, { error: 'custom-timeout' });
-      }, 900);
-    }, RUN_LIMIT_MS);
 
     if (entry.tools === true) {
       runCustomTools(run, entry, history);
