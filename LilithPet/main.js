@@ -475,7 +475,9 @@ ipcMain.handle('qoder-chat-attach-clear', () => {
   return { ok: true, files: [] };
 });
 
-ipcMain.handle('qoder-chat-stop', () => (qoderChat ? qoderChat.stop() : { ok: false }));
+ipcMain.handle('qoder-chat-stop', (_e, id) => (
+  qoderChat ? qoderChat.stop(typeof id === 'string' ? id : undefined) : { ok: false }
+));
 ipcMain.handle('qoder-chat-new', () => (qoderChat ? qoderChat.newChat() : { ok: false }));
 
 ipcMain.handle('qoder-chat-list', (_e, query) => (qoderChat ? qoderChat.listConversations(typeof query === 'string' ? query : '') : []));

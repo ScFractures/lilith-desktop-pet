@@ -599,6 +599,44 @@ select:disabled {
   margin-bottom: 0;
 }
 
+.math-inline {
+  display: inline;
+}
+
+.math-inline .katex {
+  color: inherit;
+}
+
+.math-block {
+  margin: 8px 0 10px;
+  padding: 1px 0 3px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.math-block:last-child {
+  margin-bottom: 0;
+}
+
+.math-block .katex-display {
+  margin: 0;
+}
+
+.math-block .katex {
+  color: inherit;
+}
+
+.math-block .katex-display > .katex {
+  text-align: left;
+}
+
+.math-error {
+  color: var(--rose);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  white-space: pre-wrap;
+}
+
 .code-block {
   margin: 8px 0 10px;
   border: 1px solid var(--line);
@@ -1431,6 +1469,10 @@ input {
   font-weight: 600;
 }
 
+.history-item.busy .history-item-title {
+  padding-right: 66px;
+}
+
 .history-preview {
   margin-top: 6px;
   color: var(--muted);
@@ -1439,7 +1481,8 @@ input {
 
 .history-meta {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   margin-top: 7px;
   color: var(--faint);
@@ -1448,6 +1491,21 @@ input {
 
 .history-meta time {
   flex: none;
+  margin-left: auto;
+}
+
+.history-busy {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rose-deep);
+  animation: history-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes history-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
 }
 
 .history-actions {
@@ -1476,6 +1534,10 @@ input {
 
 .history-action:hover {
   background: rgba(255, 255, 255, 0.85);
+  color: var(--rose-deep);
+}
+
+.history-action.stop {
   color: var(--rose-deep);
 }
 

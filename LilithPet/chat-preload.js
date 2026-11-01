@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('qoder', {
   attachFiles: () => ipcRenderer.invoke('qoder-chat-attach'),
   removeAttachment: (id) => ipcRenderer.invoke('qoder-chat-attach-remove', id),
   clearAttachments: () => ipcRenderer.invoke('qoder-chat-attach-clear'),
-  stop: () => ipcRenderer.invoke('qoder-chat-stop'),
+  stop: (id) => ipcRenderer.invoke('qoder-chat-stop', id),
   newChat: () => ipcRenderer.invoke('qoder-chat-new'),
   listConversations: (query) => ipcRenderer.invoke('qoder-chat-list', query),
   switchConversation: (id) => ipcRenderer.invoke('qoder-chat-switch', id),

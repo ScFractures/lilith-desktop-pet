@@ -522,19 +522,29 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
   let modelsFetchedAt = cache.fetchedAt;
   let modelsRefreshing = null;
   let modelsChild = null;
-  let activeRun = null;
+  const runs = new Map();
   let shuttingDown = false;
   const titleJobs = new Map();
   const autoTitleTried = new Set();
   const staged = new Map();
 
-  const emit = (event) => {
+  const emit = (event, conversationId = state.id) => {
     if (shuttingDown) return;
-    if (activeRun && !activeRun.finished && ['delta', 'tool', 'tool-result', 'thinking', 'credits'].includes(event.type)) {
-      checkpointSoon(activeRun);
+    const run = runs.get(conversationId);
+    if (run && !run.finished && ['delta', 'tool', 'tool-result', 'thinking', 'credits'].includes(event.type)) {
+      checkpointSoon(run);
     }
-    try { onEvent({ conversationId: state.id, ...event }); } catch {}
+    try { onEvent({ conversationId, ...event }); } catch {}
   };
+
+  function runActive(run) {
+    return !!run && !run.finished && runs.get(run.conversationId) === run;
+  }
+
+  function selectedRun() {
+    const run = runs.get(state.id);
+    return runActive(run) ? run : null;
+  }
 
   function customList() {
     try {
@@ -671,6 +681,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
           modelLabel: custom ? custom.name : conversation.model,
           workspace: conversation.workspace,
           messageCount: conversation.messages.length,
+          busy: runActive(runs.get(conversation.id)),
           createdAt: conversation.createdAt,
           updatedAt: conversation.updatedAt,
         };
@@ -682,6 +693,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     if (isCustomModel(state.model) && !selectedCustom) {
       state.model = DEFAULT_MODEL;
     }
+    const run = selectedRun();
     return {
       conversationId: state.id,
       conversationTitle: state.title,
@@ -698,13 +710,13 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       modelEntries: modelEntries(),
       customModels: customList(),
       modes: MODES.map(({ key, label, hint, danger }) => ({ key, label, hint, danger: !!danger })),
-      busy: !!activeRun && !activeRun.finished,
-      draft: activeRun && !activeRun.finished ? {
-        text: runText(activeRun),
-        reasoning: activeRun.reasoning,
-        thinking: activeRun.thinking,
-        tools: activeRun.tools.map((tool) => ({ ...tool })),
-        credits: activeRun.credits,
+      busy: !!run,
+      draft: run ? {
+        text: runText(run),
+        reasoning: run.reasoning,
+        thinking: run.thinking,
+        tools: run.tools.map((tool) => ({ ...tool })),
+        credits: run.credits,
       } : null,
       updatedAt: state.updatedAt,
       attachments: stagedList(),
@@ -729,15 +741,19 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     if (run.checkpointTimer || run.finished) return;
     run.checkpointTimer = setTimeout(() => {
       run.checkpointTimer = null;
-      if (activeRun === run && !run.finished) save();
+      if (runActive(run)) save({ touch: run.conversation });
     }, CHECKPOINT_MS);
   }
 
-  function save({ touch = true } = {}) {
-    if (touch) state.updatedAt = Date.now();
+  function save({ touch = false } = {}) {
+    const touched = touch === true ? state : (touch && typeof touch === 'object' ? touch : null);
+    if (touched) touched.updatedAt = Date.now();
     history.activeConversationId = state.id;
-    if (activeRun && !activeRun.finished) state.pendingReply = pendingReply(activeRun);
-    else delete state.pendingReply;
+    for (const conversation of history.conversations) {
+      const run = runs.get(conversation.id);
+      if (runActive(run)) conversation.pendingReply = pendingReply(run);
+      else delete conversation.pendingReply;
+    }
     const saved = writeJsonAtomic(stateFile, {
       version: 2,
       activeConversationId: state.id,
@@ -752,14 +768,14 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
   }
 
   function emitDelta(run) {
-    if (activeRun !== run || run.finished) return;
+    if (!runActive(run)) return;
     emit({
       type: 'delta',
       text: runText(run),
       reasoning: run.reasoning,
       thinking: run.thinking,
       credits: run.credits,
-    });
+    }, run.conversationId);
   }
 
   function appendReasoning(run, chunk) {
@@ -772,17 +788,17 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
   }
 
   function updateImage(messageId, image) {
-    let found = false;
+    let owner = null;
     for (const conversation of history.conversations) {
       const message = conversation.messages.find((entry) => entry.id === messageId);
       if (!message) continue;
       message.image = { ...image };
-      found = true;
+      owner = owner || conversation;
     }
-    if (!found) return;
-    save();
-    if (state.messages.some((entry) => entry.id === messageId)) {
-      emit({ type: 'image', messageId, image: { ...image } });
+    if (!owner) return;
+    save({ touch: owner });
+    if (owner === state) {
+      emit({ type: 'image', messageId, image: { ...image } }, owner.id);
     }
   }
 
@@ -803,7 +819,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     clearTimeout(run.hardTimer);
     clearTimeout(run.checkpointTimer);
     if (run.child) killProcessGroup(run.child);
-    if (activeRun === run) activeRun = null;
+    if (runs.get(run.conversationId) === run) runs.delete(run.conversationId);
 
     let text = runText(run).trim();
     let image = null;
@@ -831,7 +847,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       at: Date.now(),
       credits: Number.isFinite(run.credits) ? Number(run.credits.toFixed(4)) : 0,
       durationMs,
-      model: run.modelLabel || state.model,
+      model: run.modelLabel || run.conversation.model,
     };
     if (run.reasoning && run.reasoning.trim()) message.reasoning = run.reasoning.trim();
     if (image) message.image = image;
@@ -840,37 +856,37 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       message.error = true;
       message.errorText = errorText;
     }
-    state.messages.push(message);
-    save();
+    run.conversation.messages.push(message);
+    save({ touch: run.conversation });
 
     if (errorText) {
-      emit({ type: 'error', message, error: errorText, state: getState() });
+      emit({ type: 'error', message, error: errorText, state: getState() }, run.conversationId);
     } else if (stopped) {
-      emit({ type: 'stopped', message, state: getState() });
+      emit({ type: 'stopped', message, state: getState() }, run.conversationId);
     } else {
-      emit({ type: 'done', message, state: getState() });
+      emit({ type: 'done', message, state: getState() }, run.conversationId);
     }
 
     if (image && !errorText && !stopped) startImage(run.messageId, image.prompt);
-    if (!errorText) maybeAutoTitle(state);
+    if (!errorText) maybeAutoTitle(run.conversation);
   }
 
   function handleEvent(event, run) {
-    if (run.finished || activeRun !== run) return;
+    if (!runActive(run)) return;
     switch (event.type) {
       case 'system': {
         if (event.subtype !== 'init') return;
         if (typeof event.session_id === 'string' && event.session_id) {
-          state.sessionId = event.session_id;
-          save();
+          run.conversation.sessionId = event.session_id;
+          save({ touch: false });
         }
         run.thinking = false;
         emit({
           type: 'run-meta',
-          sessionId: state.sessionId,
-          model: event.model || state.model,
-          mode: event.permissionMode || state.mode,
-        });
+          sessionId: run.conversation.sessionId,
+          model: event.model || run.conversation.model,
+          mode: event.permissionMode || run.conversation.mode,
+        }, run.conversationId);
         break;
       }
       case 'stream_event': {
@@ -879,7 +895,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
         if (inner.type === 'content_block_start') {
           if (inner.content_block?.type === 'thinking') {
             run.thinking = true;
-            emit({ type: 'thinking', value: true });
+            emit({ type: 'thinking', value: true }, run.conversationId);
           } else if (inner.content_block?.type === 'text') {
             run.thinking = false;
           }
@@ -892,7 +908,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
           } else if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
             if (!run.thinking) {
               run.thinking = true;
-              emit({ type: 'thinking', value: true });
+              emit({ type: 'thinking', value: true }, run.conversationId);
             }
             appendReasoning(run, delta.thinking);
             emitDelta(run);
@@ -900,18 +916,18 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
         } else if (inner.type === 'content_block_stop') {
           if (run.thinking) {
             run.thinking = false;
-            emit({ type: 'thinking', value: false });
+            emit({ type: 'thinking', value: false }, run.conversationId);
           }
         } else if (inner.type === 'message_delta') {
           const credits = Number(inner.usage?.credits);
           if (Number.isFinite(credits)) {
             run.credits += credits;
-            emit({ type: 'credits', credits: run.credits });
+            emit({ type: 'credits', credits: run.credits }, run.conversationId);
           }
         } else if (inner.type === 'message_stop') {
           if (run.thinking) {
             run.thinking = false;
-            emit({ type: 'thinking', value: false });
+            emit({ type: 'thinking', value: false }, run.conversationId);
           }
         }
         break;
@@ -939,7 +955,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
           };
           run.tools.push(tool);
           run.toolById.set(tool.id, tool);
-          emit({ type: 'tool', tool: publicTool(tool) });
+          emit({ type: 'tool', tool: publicTool(tool) }, run.conversationId);
         }
         run.thinking = false;
         emit({
@@ -948,7 +964,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
           reasoning: run.reasoning,
           thinking: false,
           credits: run.credits,
-        });
+        }, run.conversationId);
         break;
       }
       case 'user': {
@@ -965,7 +981,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
             id: tool.id,
             result: tool.result,
             isError: tool.isError,
-          });
+          }, run.conversationId);
         }
         break;
       }
@@ -994,19 +1010,20 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     }
   }
 
-  function launchRun(prompt, { retried = false, attachments = [] } = {}) {
+  function launchRun(conversation, prompt, { retried = false, attachments = [] } = {}) {
     const qoder = findQoder();
     if (!qoder) return { ok: false, error: 'qoder-not-found' };
-    if (!isDirectory(state.workspace)) state.workspace = DEFAULT_WORKSPACE;
+    if (runActive(runs.get(conversation.id))) return { ok: false, error: 'busy' };
+    if (!isDirectory(conversation.workspace)) conversation.workspace = DEFAULT_WORKSPACE;
 
-    const newSession = !state.sessionId;
-    const sessionId = state.sessionId || crypto.randomUUID();
+    const newSession = !conversation.sessionId;
+    const sessionId = conversation.sessionId || crypto.randomUUID();
     const args = [
       '-p', prompt,
       '--output-format', 'stream-json',
       '--include-partial-messages',
-      '--model', state.model,
-      '--permission-mode', state.mode,
+      '--model', conversation.model,
+      '--permission-mode', conversation.mode,
     ];
     for (const file of attachments) {
       if (file && typeof file.path === 'string' && file.path) args.push('--attachment', file.path);
@@ -1018,7 +1035,9 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       messageId: crypto.randomUUID(),
       child: null,
       kind: 'qoder',
-      modelLabel: state.model,
+      conversation,
+      conversationId: conversation.id,
+      modelLabel: conversation.model,
       sessionId,
       prompt,
       attachments,
@@ -1040,14 +1059,14 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       streamBuffer: '',
       hardTimer: null,
     };
-    activeRun = run;
+    runs.set(conversation.id, run);
     save({ touch: false });
-    emit({ type: 'snapshot', state: getState() });
+    if (conversation === state) emit({ type: 'snapshot', state: getState() });
 
     let child;
     try {
       child = spawn(qoder, args, {
-        cwd: state.workspace,
+        cwd: conversation.workspace,
         env: { ...process.env, TERM: 'xterm-256color' },
         detached: true,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -1117,16 +1136,19 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     clearTimeout(run.hardTimer);
     clearTimeout(run.checkpointTimer);
     if (run.child) killProcessGroup(run.child);
-    if (activeRun === run) activeRun = null;
-    state.sessionId = null;
-    save();
-    emit({ type: 'notice', code: 'session-reset' });
-    launchRun(run.prompt, { retried: true, attachments: run.attachments || [] });
+    if (runs.get(run.conversationId) === run) runs.delete(run.conversationId);
+    run.conversation.sessionId = null;
+    save({ touch: false });
+    emit({ type: 'notice', code: 'session-reset' }, run.conversationId);
+    launchRun(run.conversation, run.prompt, { retried: true, attachments: run.attachments || [] });
   }
 
   function runCustomTools(run, entry, history) {
     const conversation = history.map((message) => ({ role: message.role, content: message.content }));
-    conversation.unshift({ role: 'system', content: toolSystemPrompt(state.workspace, state.mode) });
+    conversation.unshift({
+      role: 'system',
+      content: toolSystemPrompt(run.conversation.workspace, run.conversation.mode),
+    });
     let callCount = 0;
 
     const fail = (error) => {
@@ -1158,7 +1180,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
           signal: run.controller.signal,
           tools: customTools.toolSpecs(),
           onDelta: (chunk) => {
-            if (run.finished || activeRun !== run) return;
+            if (!runActive(run)) return;
             if (!textStarted) {
               textStarted = true;
               if (run.block) run.block += '\n\n';
@@ -1168,10 +1190,10 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
             emitDelta(run);
           },
           onReasoning: (chunk) => {
-            if (run.finished || activeRun !== run) return;
+            if (!runActive(run)) return;
             if (!run.reasoning && !run.block && !run.thinking) {
               run.thinking = true;
-              emit({ type: 'thinking', value: true });
+              emit({ type: 'thinking', value: true }, run.conversationId);
             }
             appendReasoning(run, chunk);
             emitDelta(run);
@@ -1214,15 +1236,15 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
           };
           run.tools.push(tool);
           run.toolById.set(tool.id, tool);
-          emit({ type: 'tool', tool: publicTool(tool) });
+          emit({ type: 'tool', tool: publicTool(tool) }, run.conversationId);
 
           let result;
           if (call.parseError) {
             result = { content: `Tool arguments were not valid JSON: ${call.parseError}`, isError: true };
           } else {
             result = await customTools.executeTool(name, input, {
-              workspace: state.workspace,
-              mode: state.mode,
+              workspace: run.conversation.workspace,
+              mode: run.conversation.mode,
               signal: run.controller.signal,
             });
           }
@@ -1234,7 +1256,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
           tool.result = clip(toolContentText(result && result.content), MAX_TOOL_TEXT);
           tool.isError = !!(result && result.isError);
           tool.state = 'done';
-          emit({ type: 'tool-result', id: tool.id, result: tool.result, isError: tool.isError });
+          emit({ type: 'tool-result', id: tool.id, result: tool.result, isError: tool.isError }, run.conversationId);
           conversation.push({
             role: 'tool',
             toolCallId: tool.id,
@@ -1249,13 +1271,16 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     loop().catch(fail);
   }
 
-  function launchCustomRun(entry, prompt) {
+  function launchCustomRun(conversation, entry, prompt) {
+    if (runActive(runs.get(conversation.id))) return { ok: false, error: 'busy' };
     const run = {
       messageId: crypto.randomUUID(),
       child: null,
       kind: 'custom',
       controller: new AbortController(),
       entry,
+      conversation,
+      conversationId: conversation.id,
       modelLabel: entry.name,
       prompt,
       finalText: '',
@@ -1274,13 +1299,13 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       durationMs: null,
       hardTimer: null,
     };
-    activeRun = run;
+    runs.set(conversation.id, run);
     save({ touch: false });
-    emit({ type: 'snapshot', state: getState() });
+    if (conversation === state) emit({ type: 'snapshot', state: getState() });
 
     const history = customStore
-      ? customStore.buildHistory(state.messages)
-      : state.messages.map((message) => ({ role: message.role, content: message.text }));
+      ? customStore.buildHistory(conversation.messages)
+      : conversation.messages.map((message) => ({ role: message.role, content: message.text }));
     if (imagegen) history.unshift({ role: 'system', content: IMAGE_GUIDE });
 
     run.hardTimer = setTimeout(() => {
@@ -1300,16 +1325,16 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     customStore.stream(entry.id, history, {
       signal: run.controller.signal,
       onDelta: (chunk) => {
-        if (run.finished || activeRun !== run) return;
+        if (!runActive(run)) return;
         run.block += chunk;
         run.thinking = false;
         emitDelta(run);
       },
       onReasoning: (chunk) => {
-        if (run.finished || activeRun !== run) return;
+        if (!runActive(run)) return;
         if (!run.reasoning && !run.block && !run.thinking) {
           run.thinking = true;
-          emit({ type: 'thinking', value: true });
+          emit({ type: 'thinking', value: true }, run.conversationId);
         }
         appendReasoning(run, chunk);
         emitDelta(run);
@@ -1339,7 +1364,8 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
   }
 
   function send(text, attachmentIds) {
-    if (activeRun && !activeRun.finished) return { ok: false, error: 'busy' };
+    const conversation = state;
+    if (runActive(runs.get(conversation.id))) return { ok: false, error: 'busy' };
     const prompt = String(text == null ? '' : text).trim();
     const resolved = resolveStaged(attachmentIds);
     if (resolved.error) return { ok: false, error: resolved.error };
@@ -1360,17 +1386,17 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     };
     const stored = normalizeFiles(files);
     if (stored.length) message.files = stored;
-    state.messages.push(message);
-    if (!state.title) {
-      state.title = cleanTitle(prompt || fileNames(message));
-      state.titleSource = 'default';
+    conversation.messages.push(message);
+    if (!conversation.title) {
+      conversation.title = cleanTitle(prompt || fileNames(message));
+      conversation.titleSource = 'default';
     }
-    state.inputDraft = '';
+    conversation.inputDraft = '';
     for (const file of files) staged.delete(file.id);
-    save();
+    save({ touch: conversation });
 
-    if (custom) return launchCustomRun(custom, message.text);
-    return launchRun(qoderPrompt(message), { attachments: message.files });
+    if (custom) return launchCustomRun(conversation, custom, message.text);
+    return launchRun(conversation, qoderPrompt(message), { attachments: message.files });
   }
 
   async function interject(text, attachmentIds) {
@@ -1379,8 +1405,8 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     if (resolved.error) return { ok: false, error: resolved.error };
     if (!prompt && !resolved.files.length) return { ok: false, error: 'empty' };
     if (prompt.length > MAX_PROMPT) return { ok: false, error: 'too-long' };
-    const run = activeRun;
-    if (!run || run.finished) return send(prompt, attachmentIds);
+    const run = selectedRun();
+    if (!run) return send(prompt, attachmentIds);
     const conversationId = state.id;
     const closed = run.child && run.child.exitCode === null && !run.child.signalCode
       ? new Promise((resolve) => {
@@ -1391,34 +1417,34 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
         });
       })
       : Promise.resolve();
-    interruptActiveRun();
+    interruptRun(run);
     await closed;
     if (state.id !== conversationId) return { ok: false, error: 'conversation-not-found' };
     return send(prompt, attachmentIds);
   }
 
-  function stop() {
-    const run = activeRun;
-    if (!run || run.finished) return { ok: false, error: 'idle' };
+  function stop(id) {
+    const conversationId = typeof id === 'string' && id ? id : state.id;
+    const run = runs.get(conversationId);
+    if (!runActive(run)) return { ok: false, error: 'idle' };
     run.stopRequested = true;
-    emit({ type: 'run-status', status: 'stopping' });
+    emit({ type: 'run-status', status: 'stopping' }, conversationId);
     if (run.controller) {
       try { run.controller.abort(); } catch {}
       setTimeout(() => {
-        if (activeRun === run && !run.finished) finishRun(run, { stopped: true });
+        if (runs.get(conversationId) === run && !run.finished) finishRun(run, { stopped: true });
       }, 600);
       return { ok: true };
     }
     if (run.child) killProcessGroup(run.child);
     setTimeout(() => {
-      if (activeRun === run && !run.finished) finishRun(run, { stopped: true });
+      if (runs.get(conversationId) === run && !run.finished) finishRun(run, { stopped: true });
     }, 3200);
     return { ok: true };
   }
 
-  function interruptActiveRun() {
-    const run = activeRun;
-    if (!run || run.finished) return;
+  function interruptRun(run) {
+    if (!runActive(run)) return;
     run.stopRequested = true;
     if (run.controller) {
       try { run.controller.abort(); } catch {}
@@ -1427,7 +1453,6 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
   }
 
   function newChat() {
-    interruptActiveRun();
     clearStaged();
     if (!state.messages.length && !state.inputDraft && !state.sessionId) {
       emitSnapshot();
@@ -1444,7 +1469,6 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     const target = history.conversations.find((entry) => entry.id === id);
     if (!target) return { ok: false, error: 'conversation-not-found' };
     if (target !== state) {
-      interruptActiveRun();
       clearStaged();
       state = target;
       save({ touch: false });
@@ -1541,10 +1565,8 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
   function deleteConversation(id) {
     const target = history.conversations.find((entry) => entry.id === id);
     if (!target) return { ok: false, error: 'conversation-not-found' };
-    if (target === state) {
-      interruptActiveRun();
-      clearStaged();
-    }
+    interruptRun(runs.get(target.id));
+    if (target === state) clearStaged();
     history.conversations = history.conversations.filter((entry) => entry !== target);
     if (target === state) {
       state = history.conversations.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0]
@@ -1567,29 +1589,29 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
   }
 
   function setModel(model) {
-    if (activeRun && !activeRun.finished) return { ok: false, error: 'busy' };
+    if (selectedRun()) return { ok: false, error: 'busy' };
     const value = String(model == null ? '' : model).trim().slice(0, 120);
     if (!value) return { ok: false, error: 'invalid-model' };
     if (isCustomModel(value) && !resolveCustom(value)) {
       return { ok: false, error: 'invalid-model' };
     }
     state.model = value;
-    save();
+    save({ touch: true });
     emitSnapshot();
     return { ok: true, state: getState() };
   }
 
   function setMode(mode) {
-    if (activeRun && !activeRun.finished) return { ok: false, error: 'busy' };
+    if (selectedRun()) return { ok: false, error: 'busy' };
     if (!MODES.some((entry) => entry.key === mode)) return { ok: false, error: 'invalid-mode' };
     state.mode = mode;
-    save();
+    save({ touch: true });
     emitSnapshot();
     return { ok: true, state: getState() };
   }
 
   function setWorkspace(workspace) {
-    if (activeRun && !activeRun.finished) return { ok: false, error: 'busy' };
+    if (selectedRun()) return { ok: false, error: 'busy' };
     const dir = path.resolve(String(workspace || ''));
     if (!isDirectory(dir)) return { ok: false, error: 'invalid-workspace' };
     if (dir === state.workspace) return { ok: true, state: getState() };
@@ -1600,7 +1622,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
     } else {
       state.workspace = dir;
     }
-    save();
+    save({ touch: true });
     emitSnapshot();
     return { ok: true, state: getState() };
   }
@@ -1664,7 +1686,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
   function refreshCustomModels() {
     if (isCustomModel(state.model) && !resolveCustom(state.model)) {
       state.model = DEFAULT_MODEL;
-      save();
+      save({ touch: true });
     }
     emitSnapshot();
     return { ok: true, state: getState() };
@@ -1677,7 +1699,7 @@ function createQoderChat({ stateFile, modelsFile, customStore, imagegen, onEvent
       killProcessGroup(modelsChild);
       modelsChild = null;
     }
-    interruptActiveRun();
+    for (const run of [...runs.values()]) interruptRun(run);
   }
 
   if (history.needsSave) save({ touch: false });

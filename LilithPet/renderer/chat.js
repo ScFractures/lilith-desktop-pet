@@ -22,7 +22,6 @@
       save: '保存',
       deleteConversationConfirm: '确定删除「{title}」？此操作不可撤销。',
       deleteBusyConfirm: '此对话仍在运行，删除会停止当前任务。确定删除「{title}」？此操作不可撤销。',
-      switchBusyConfirm: '模型还在运行。切换对话会停止当前任务，并保存已生成内容。继续吗？',
       conversationMissing: '这条对话已不存在，请重新选择。',
       invalidTitle: '请输入对话名称。',
       historySaveFailed: '对话保存失败，请检查磁盘空间和应用数据目录权限。',
@@ -65,6 +64,8 @@
       interject: '插嘴',
       interjectHint: 'Enter 插嘴 · 会先停止当前输出',
       stop: '停止',
+      running: '运行中',
+      stopConversation: '停止此对话',
       enterHint: 'Enter 发送 · Shift+Enter 换行',
       sessionActive: '会话已连接，后续消息会保留上下文',
       sessionNew: '还没有建立会话',
@@ -99,6 +100,7 @@
       errorToolRoundLimit: '工具调用轮次超过上限，已停止。',
       errorToolCallLimit: '工具调用次数超过上限，已停止。',
       busySend: '上一条还在进行，先等它结束或点停止。',
+      backgroundDone: '后台对话「{title}」已完成。',
       emptySend: '先说点什么吧。',
       tooLong: '这段话太长了，精简一点。',
       qoderMissing: '找不到 Qoder CLI，请确认 ~/.qoder-cn 已安装并可运行。',
@@ -106,7 +108,6 @@
       invalidModel: '这个模型已不存在，请重新选择。',
       manageFailed: '打开添加模型页面失败：{error}',
       chooseWorkspace: '选择工作目录',
-      newChatBusyConfirm: '模型还在运行。开始新对话会停止当前任务，当前对话和已生成内容会保留在历史中。继续吗？',
       workspaceConfirm: '切换工作目录会开始新对话，当前对话会保留在历史中。继续吗？',
       requestFailed: '操作失败：{error}',
     },
@@ -131,7 +132,6 @@
       save: 'Save',
       deleteConversationConfirm: 'Delete “{title}”? This cannot be undone.',
       deleteBusyConfirm: 'This conversation is still running. Deleting it will stop the task. Delete “{title}”? This cannot be undone.',
-      switchBusyConfirm: 'The model is still running. Switching conversations stops the task and saves the partial reply. Continue?',
       conversationMissing: 'That conversation no longer exists. Pick another one.',
       invalidTitle: 'Enter a conversation name.',
       historySaveFailed: 'Could not save the conversation. Check disk space and application-data permissions.',
@@ -174,6 +174,8 @@
       interject: 'Interject',
       interjectHint: 'Enter to interject · stops the current output',
       stop: 'Stop',
+      running: 'Running',
+      stopConversation: 'Stop this chat',
       enterHint: 'Enter to send · Shift+Enter for a new line',
       sessionActive: 'Session connected; later messages keep the context',
       sessionNew: 'No session yet',
@@ -208,6 +210,7 @@
       errorToolRoundLimit: 'Stopped after too many tool rounds.',
       errorToolCallLimit: 'Stopped after too many tool calls.',
       busySend: 'The previous turn is still running. Wait or press Stop.',
+      backgroundDone: 'Background chat “{title}” finished.',
       emptySend: 'Say something first.',
       tooLong: 'That message is too long — trim it a little.',
       qoderMissing: 'Qoder CLI was not found. Check that ~/.qoder-cn is installed and runnable.',
@@ -215,7 +218,6 @@
       invalidModel: 'That model no longer exists. Pick another one.',
       manageFailed: 'Could not open the add-model page: {error}',
       chooseWorkspace: 'Choose workspace',
-      newChatBusyConfirm: 'The model is still running. A new chat stops the task and keeps this conversation and partial reply in history. Continue?',
       workspaceConfirm: 'Switching workspace starts a new chat and keeps this conversation in history. Continue?',
       requestFailed: 'Action failed: {error}',
     },
@@ -619,6 +621,7 @@
       item.dataset.conversationId = conversation.id;
       const selected = conversation.id === state.conversationId;
       item.classList.toggle('active', selected);
+      item.classList.toggle('busy', !!conversation.busy);
       const select = document.createElement('button');
       select.type = 'button';
       select.className = 'history-select';
@@ -634,6 +637,12 @@
       preview.textContent = conversation.preview || t('emptyConversation');
       const meta = document.createElement('span');
       meta.className = 'history-meta';
+      if (conversation.busy) {
+        const live = document.createElement('span');
+        live.className = 'history-busy';
+        live.title = t('running');
+        meta.appendChild(live);
+      }
       const model = document.createElement('span');
       model.className = 'history-model';
       model.textContent = conversation.modelLabel || conversation.model || '';
@@ -646,6 +655,16 @@
       select.addEventListener('click', () => switchConversation(conversation.id));
       const actions = document.createElement('div');
       actions.className = 'history-actions';
+      if (conversation.busy) {
+        const halt = document.createElement('button');
+        halt.type = 'button';
+        halt.className = 'history-action stop';
+        halt.textContent = '■';
+        halt.title = t('stopConversation');
+        halt.setAttribute('aria-label', `${t('stopConversation')}: ${title}`);
+        halt.addEventListener('click', () => stopConversation(conversation.id));
+        actions.appendChild(halt);
+      }
       const suggest = document.createElement('button');
       suggest.type = 'button';
       suggest.className = 'history-action';
@@ -820,46 +839,114 @@
     return code;
   }
 
-  function renderRichText(container, text, streaming) {
-    container.textContent = '';
-    const value = String(text || '');
-    let index = 0;
+  // ------------------------------------------------------------- rich text
+  const MATH_FENCE_LANGS = new Set(['math', 'katex']);
+  const MATH_CACHE_LIMIT = 400;
+  const mathCache = new Map();
+
+  function isEscaped(value, index) {
+    let count = 0;
+    for (let i = index - 1; i >= 0 && value[i] === '\\'; i -= 1) count += 1;
+    return count % 2 === 1;
+  }
+
+  function findDelimiter(value, delimiter, from) {
+    let index = value.indexOf(delimiter, from);
+    while (index >= 0) {
+      if (!isEscaped(value, index)) return index;
+      index = value.indexOf(delimiter, index + delimiter.length);
+    }
+    return -1;
+  }
+
+  // Mimics KaTeX auto-render's dollar rules so prices like "$5" stay literal.
+  function findDollarClose(value, from) {
+    let index = from;
     while (index < value.length) {
-      const start = value.indexOf('```', index);
-      if (start < 0) {
-        appendTextSegments(container, value.slice(index));
-        break;
+      index = value.indexOf('$', index);
+      if (index < 0) return -1;
+      if (isEscaped(value, index) || value[index + 1] === '$') {
+        index += 1;
+        continue;
       }
-      const lineEnd = value.indexOf('\n', start + 3);
-      if (lineEnd < 0) {
-        appendTextSegments(container, value.slice(index));
-        break;
-      }
-      const fenceLang = value.slice(start + 3, lineEnd).trim();
-      const end = value.indexOf('```', lineEnd + 1);
-      if (end < 0) {
-        appendTextSegments(container, value.slice(index));
-        break;
-      }
-      if (start > index) appendTextSegments(container, value.slice(index, start));
-      const block = document.createElement('div');
-      block.className = 'code-block';
-      const head = document.createElement('div');
-      head.className = 'code-head';
-      const langLabel = document.createElement('span');
-      langLabel.textContent = fenceLang || 'code';
-      head.appendChild(langLabel);
-      const pre = document.createElement('pre');
-      pre.textContent = value.slice(lineEnd + 1, end).replace(/\n$/, '');
-      block.append(head, pre);
-      container.appendChild(block);
-      index = end + 3;
+      const content = value.slice(from, index);
+      const after = value[index + 1];
+      if (content && !/\s$/.test(content) && !(after && /\d/.test(after))) return index;
+      index += 1;
     }
-    if (streaming) {
-      const cursor = document.createElement('span');
-      cursor.className = 'stream-cursor';
-      container.appendChild(cursor);
+    return -1;
+  }
+
+  function appendMath(container, tex, display) {
+    const source = String(tex || '').trim();
+    if (!source) return;
+    const wrapper = document.createElement(display ? 'div' : 'span');
+    wrapper.className = display ? 'math-block' : 'math-inline';
+    if (!window.katex || typeof window.katex.render !== 'function') {
+      wrapper.textContent = display ? `$$${source}$$` : `$${source}$`;
+      container.appendChild(wrapper);
+      return;
     }
+    const key = `${display ? 'd' : 'i'}:${source}`;
+    const cached = mathCache.get(key);
+    if (cached) {
+      container.appendChild(cached.cloneNode(true));
+      return;
+    }
+    try {
+      window.katex.render(source, wrapper, {
+        displayMode: display,
+        throwOnError: false,
+        strict: 'ignore',
+        trust: false,
+      });
+    } catch (error) {
+      wrapper.textContent = display ? `$$${source}$$` : `$${source}$`;
+      wrapper.classList.add('math-error');
+    }
+    if (mathCache.size >= MATH_CACHE_LIMIT) mathCache.clear();
+    mathCache.set(key, wrapper);
+    container.appendChild(wrapper.cloneNode(true));
+  }
+
+  function appendTextNode(parent, text) {
+    if (!text) return;
+    parent.appendChild(document.createTextNode(text.replace(/\\([\\$])/g, '$1')));
+  }
+
+  function appendInline(container, raw) {
+    const text = String(raw || '');
+    let index = 0;
+    let textStart = 0;
+    while (index < text.length) {
+      if (text[index] === '\\' && text[index + 1] === '(' && !isEscaped(text, index)) {
+        const end = findDelimiter(text, '\\)', index + 2);
+        if (end > index + 2) {
+          appendTextNode(container, text.slice(textStart, index));
+          appendMath(container, text.slice(index + 2, end), false);
+          index = end + 2;
+          textStart = index;
+          continue;
+        }
+        index += 2;
+        continue;
+      }
+      if (text[index] === '$' && text[index + 1] !== '$' && !isEscaped(text, index)) {
+        const next = text[index + 1];
+        if (next && !/\s/.test(next)) {
+          const end = findDollarClose(text, index + 1);
+          if (end > index + 1) {
+            appendTextNode(container, text.slice(textStart, index));
+            appendMath(container, text.slice(index + 1, end), false);
+            index = end + 1;
+            textStart = index;
+            continue;
+          }
+        }
+      }
+      index += 1;
+    }
+    appendTextNode(container, text.slice(textStart));
   }
 
   function appendTextSegments(container, raw) {
@@ -869,10 +956,104 @@
       if (!chunk.trim() && chunks.length > 1) return;
       const div = document.createElement('div');
       div.className = 'text-segment';
-      div.textContent = chunk;
+      appendInline(div, chunk);
       if (i === chunks.length - 1) div.style.marginBottom = '0';
       container.appendChild(div);
     });
+  }
+
+  function appendCodeBlock(container, fenceLang, code) {
+    const lang = String(fenceLang || '').trim();
+    if (MATH_FENCE_LANGS.has(lang.toLowerCase())) {
+      appendMath(container, code, true);
+      return;
+    }
+    const block = document.createElement('div');
+    block.className = 'code-block';
+    const head = document.createElement('div');
+    head.className = 'code-head';
+    const langLabel = document.createElement('span');
+    langLabel.textContent = lang || 'code';
+    head.appendChild(langLabel);
+    const pre = document.createElement('pre');
+    pre.textContent = code.replace(/\n$/, '');
+    block.append(head, pre);
+    container.appendChild(block);
+  }
+
+  function renderRichText(container, text, streaming) {
+    container.textContent = '';
+    const value = String(text || '');
+    let index = 0;
+    let cursor = 0;
+    const flushText = (end) => {
+      if (end > cursor) appendTextSegments(container, value.slice(cursor, end));
+    };
+    while (index < value.length) {
+      // Fenced code blocks: only draw them once the closing fence exists.
+      if (value.startsWith('```', index)) {
+        const lineEnd = value.indexOf('\n', index + 3);
+        if (lineEnd >= 0) {
+          const end = value.indexOf('```', lineEnd + 1);
+          if (end >= 0) {
+            flushText(index);
+            appendCodeBlock(container, value.slice(index + 3, lineEnd), value.slice(lineEnd + 1, end));
+            index = end + 3;
+            cursor = index;
+            continue;
+          }
+        }
+        index += 3;
+        continue;
+      }
+      // $$ ... $$ (may span multiple lines)
+      if (value[index] === '$' && value[index + 1] === '$' && !isEscaped(value, index)) {
+        const end = findDelimiter(value, '$$', index + 2);
+        if (end >= 0) {
+          flushText(index);
+          appendMath(container, value.slice(index + 2, end), true);
+          index = end + 2;
+          cursor = index;
+          continue;
+        }
+      }
+      // \[ ... \]
+      if (value[index] === '\\' && value[index + 1] === '[' && !isEscaped(value, index)) {
+        const end = findDelimiter(value, '\\]', index + 2);
+        if (end >= 0) {
+          flushText(index);
+          appendMath(container, value.slice(index + 2, end), true);
+          index = end + 2;
+          cursor = index;
+          continue;
+        }
+      }
+      // Bare environments such as \begin{align} ... \end{align} on their own line.
+      if (value.startsWith('\\begin{', index)) {
+        const nameEnd = value.indexOf('}', index + 7);
+        if (nameEnd > index + 7) {
+          const env = value.slice(index + 7, nameEnd).trim();
+          const lineStart = value.lastIndexOf('\n', index - 1) + 1;
+          const atLineStart = !value.slice(lineStart, index).trim();
+          const endToken = `\\end{${env}}`;
+          const end = atLineStart ? findDelimiter(value, endToken, nameEnd + 1) : -1;
+          if (end >= 0) {
+            flushText(index);
+            appendMath(container, value.slice(index, end + endToken.length), true);
+            index = end + endToken.length;
+            cursor = index;
+            continue;
+          }
+        }
+      }
+      index += 1;
+    }
+    flushText(value.length);
+    if (streaming) {
+      const cursorEl = document.createElement('span');
+      cursorEl.className = 'stream-cursor';
+      container.appendChild(cursorEl);
+    }
   }
 
   function makeReasoningElement(text, open) {
@@ -1269,9 +1450,21 @@
 
   function handleEvent(event) {
     if (!event || typeof event.type !== 'string') return;
-    // Ignore a delayed stream event from the conversation that was just left.
-    if (event.conversationId && event.conversationId !== state.conversationId
-      && !['snapshot', 'done', 'stopped', 'error'].includes(event.type)) return;
+    if (event.conversationId && event.conversationId !== state.conversationId) {
+      // Runs keep streaming in the background; only refresh the history badges here.
+      if (['done', 'stopped', 'error'].includes(event.type) && event.state
+        && Array.isArray(event.state.conversations)) {
+        state.conversations = event.state.conversations;
+        renderHistory();
+        if (event.type === 'done' && !state.busy) {
+          const chat = state.conversations.find((entry) => entry.id === event.conversationId);
+          setStatus(fill(t('backgroundDone'), {
+            title: (chat && chat.title) || t('untitledConversation'),
+          }), 'transient');
+        }
+      }
+      return;
+    }
     switch (event.type) {
       case 'snapshot':
         applyState(event.state);
@@ -1414,9 +1607,15 @@
   async function stopRun() {
     stopBtn.disabled = true;
     try {
-      await window.qoder.stop();
+      await window.qoder.stop(state.conversationId);
     } catch {}
     stopBtn.disabled = false;
+  }
+
+  async function stopConversation(id) {
+    try {
+      await window.qoder.stop(id);
+    } catch {}
   }
 
   function persistInputDraft() {
@@ -1471,7 +1670,6 @@
 
   async function newChat() {
     if (changingConversation) return;
-    if (state.busy && !window.confirm(t('newChatBusyConfirm'))) return;
     await conversationAction(() => window.qoder.newChat(), { closeHistory: true });
   }
 
@@ -1482,13 +1680,12 @@
       input.focus();
       return;
     }
-    if (state.busy && !window.confirm(t('switchBusyConfirm'))) return;
     await conversationAction(() => window.qoder.switchConversation(id), { closeHistory: true });
   }
 
   async function deleteConversation(conversation) {
     if (changingConversation) return;
-    const key = state.busy && conversation.id === state.conversationId ? 'deleteBusyConfirm' : 'deleteConversationConfirm';
+    const key = conversation.busy ? 'deleteBusyConfirm' : 'deleteConversationConfirm';
     if (!window.confirm(fill(t(key), { title: conversation.title || t('untitledConversation') }))) return;
     await conversationAction(async () => {
       const result = await window.qoder.deleteConversation(conversation.id);
@@ -1596,6 +1793,35 @@
     }
   }
 
+  // Copy rendered math back as LaTeX source instead of KaTeX's duplicated DOM text.
+  function onCopy(event) {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+    const anchor = selection.anchorNode;
+    if (!anchor || !messagesEl.contains(anchor)) return;
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:640px;white-space:pre-wrap;';
+    holder.appendChild(selection.getRangeAt(0).cloneContents());
+    let replaced = 0;
+    holder.querySelectorAll('.katex').forEach((node) => {
+      const source = node.querySelector('annotation[encoding="application/x-tex"]');
+      if (!source) return;
+      const tex = source.textContent || '';
+      const display = !!node.closest('.math-block');
+      node.replaceWith(document.createTextNode(display ? `$$\n${tex}\n$$` : `$${tex}$`));
+      replaced += 1;
+    });
+    if (!replaced) return;
+    document.body.appendChild(holder);
+    const text = holder.innerText;
+    holder.remove();
+    if (!text) return;
+    if (event.clipboardData) {
+      event.clipboardData.setData('text/plain', text);
+      event.preventDefault();
+    }
+  }
+
   // ------------------------------------------------------------- wiring
   newChatBtn.addEventListener('click', newChat);
   historyToggle.addEventListener('click', () => setHistoryOpen(!historyOpen));
@@ -1607,6 +1833,7 @@
   renameDialog.addEventListener('close', () => { renamingId = null; });
   window.addEventListener('beforeunload', () => { persistInputDraft(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) persistInputDraft(); });
+  document.addEventListener('copy', onCopy);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !renameDialog.open && historyOpen) {
       setHistoryOpen(false);

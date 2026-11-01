@@ -237,52 +237,75 @@ test('search finds full message text, renaming persists, deletion never clears o
   assert.notEqual(only.conversationId, first);
 });
 
-test('switching while busy aborts and saves partial reply to the correct conversation', async (t) => {
-  const f = fixture(t, legacy(), mockStore({ slow: true }));
+test('switching conversations keeps runs alive and allows concurrent sends', async (t) => {
+  const store = mockStore({ slowCalls: 1 });
+  const f = fixture(t, legacy(), store);
   const first = f.chat.getState().conversationId;
   const second = f.chat.newChat().state.conversationId;
-  f.chat.setModel('custom:mock');
-  f.chat.send('长任务');
+  assert.equal(f.chat.setModel('custom:mock').ok, true);
+  assert.equal(f.chat.send('长任务').ok, true);
   assert.equal(f.chat.getState().busy, true);
-  assert.equal(f.chat.send('并发任务').error, 'busy');
+  assert.equal(f.chat.send('同一对话再来一条').error, 'busy');
+
   f.chat.switchConversation(first);
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.equal(f.chat.getState().messages.length, 2);
+  assert.equal(f.chat.getState().busy, false);
+  assert.equal(f.chat.getState().conversations.find((chat) => chat.id === second).busy, true);
+
+  // The first conversation can reply while the second one is still streaming.
+  assert.equal(f.chat.setModel('custom:mock').ok, true);
+  assert.equal(f.chat.send('并发任务').ok, true);
+  await waitIdle(f.chat);
+  assert.equal(store.requests.length, 2);
+  assert.equal(f.chat.getState().messages.at(-1).text, 'complete reply');
+
   f.chat.switchConversation(second);
+  assert.equal(f.chat.getState().busy, true);
+  assert.equal(f.chat.getState().draft.text, 'partial reply');
+  assert.equal(f.chat.stop(second).ok, true);
+  await new Promise((resolve) => setTimeout(resolve, 20));
   const answer = f.chat.getState().messages.at(-1);
   assert.equal(answer.text, 'partial reply');
   assert.equal(answer.reasoning, 'mock reasoning');
   assert.equal(answer.interrupted, true);
   assert.equal(f.chat.getState().busy, false);
-  const stopped = f.events.find((event) => event.type === 'stopped');
-  assert.equal(stopped.conversationId, second);
+
+  // Events are stamped with the conversation that produced them.
+  assert.ok(f.events.some((event) => event.type === 'delta' && event.conversationId === second));
+  assert.ok(f.events.some((event) => event.type === 'done' && event.conversationId === first));
+  assert.ok(f.events.some((event) => event.type === 'stopped' && event.conversationId === second));
+
   f.restart();
+  f.chat.switchConversation(second);
   assert.equal(f.chat.getState().messages.at(-1).interrupted, true);
 });
 
-test('new chat and app shutdown preserve in-flight replies; deleting other history does not abort', async (t) => {
+test('new chat keeps runs alive, deleting a running chat stops it, shutdown saves partial replies', async (t) => {
   const f = fixture(t, legacy(), mockStore({ slow: true }));
   const first = f.chat.getState().conversationId;
   const second = f.chat.newChat().state.conversationId;
   f.chat.setModel('custom:mock');
   f.chat.send('进行中的任务');
   f.chat.deleteConversation(first);
-  assert.equal(f.chat.getState().busy, true);
+  assert.equal(f.chat.getState().conversations.find((chat) => chat.id === second).busy, true);
   const third = f.chat.newChat().state.conversationId;
   assert.notEqual(third, second);
-  f.chat.switchConversation(second);
-  assert.equal(f.chat.getState().messages.at(-1).interrupted, true);
-  f.chat.send('退出前任务');
+  assert.equal(f.chat.getState().busy, false);
+  assert.equal(f.chat.getState().conversations.find((chat) => chat.id === second).busy, true);
+
   f.restart();
+  f.chat.switchConversation(second);
   assert.equal(f.chat.getState().messages.at(-1).text, 'partial reply');
   assert.equal(f.chat.getState().messages.at(-1).interrupted, true);
   assert.equal(f.chat.getState().busy, false);
+
   f.chat.send('删除当前任务');
+  assert.equal(f.chat.getState().busy, true);
   f.chat.deleteConversation(second);
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(f.chat.getState().conversationId, third);
   assert.equal(f.chat.getState().messages.length, 0);
   assert.equal(f.chat.getState().busy, false);
+  assert.equal(f.chat.getState().conversations.some((chat) => chat.id === second), false);
 });
 
 test('switching workspace preserves the old conversation and its draft', (t) => {
@@ -517,6 +540,6 @@ test('Qoder models receive every attachment through --attachment, not in the pro
   assert.equal(argv.filter((arg) => arg === '--attachment').length, 2);
   assert.equal(argv[argv.indexOf('--attachment') + 1], firstPath);
   assert.equal(argv[argv.lastIndexOf('--attachment') + 1], secondPath);
-  assert.ok(argv.includes(`读一下\n\nAttached files: ${firstPath}, ${secondPath}`));
+  assert.ok(argv.some((arg) => arg.startsWith(`读一下\n\nAttached files: ${firstPath}, ${secondPath}`)));
   assert.equal(argv.some((arg) => arg.includes('SECRET_CONTENT')), false);
 });

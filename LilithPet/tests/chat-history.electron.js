@@ -70,7 +70,7 @@ function bind() {
   ipcMain.handle('qoder-chat-delete', (_e, id) => chat.deleteConversation(id));
   ipcMain.handle('qoder-chat-draft', (_e, id, text) => chat.saveInputDraft(id, text));
   ipcMain.handle('qoder-chat-send', (_e, text) => chat.send(text));
-  ipcMain.handle('qoder-chat-stop', () => chat.stop());
+  ipcMain.handle('qoder-chat-stop', (_e, id) => chat.stop(id));
   ipcMain.handle('qoder-chat-set-model', (_e, model) => chat.setModel(model));
   ipcMain.handle('qoder-chat-set-mode', (_e, mode) => chat.setMode(mode));
   ipcMain.handle('qoder-chat-choose-workspace', () => ({ ok: false, error: 'canceled' }));
@@ -130,7 +130,7 @@ app.whenReady().then(async () => {
   await until('document.querySelectorAll(".history-item").length === 2', 'clear search');
   console.log('[history-ui] switching, independent input drafts and full-text search passed');
 
-  await click(`[data-conversation-id="${second}"] .history-action`);
+  await click(`[data-conversation-id="${second}"] .history-action:nth-child(2)`);
   assert.equal(await js('document.getElementById("rename-dialog").open'), true);
   await type('#rename-input', '<img src=x onerror=alert(1)> 测试标题');
   await js('document.getElementById("rename-form").requestSubmit()');
@@ -167,18 +167,21 @@ app.whenReady().then(async () => {
   await type('#input', '慢任务');
   await click('#send');
   await until('document.getElementById("stop").hidden === false', 'slow run started');
-  await js('window.confirm = () => false; void 0');
   await click('#newchat');
-  assert.equal(chat.getState().busy, true);
-  await js('window.confirm = () => true; void 0');
-  await click('#newchat');
-  await until('document.querySelectorAll(".history-item").length === 2 && document.getElementById("stop").hidden', 'new chat interrupts slow reply');
+  await until('document.querySelectorAll(".history-item").length === 2 && document.getElementById("stop").hidden', 'new chat starts without stopping the run');
+  assert.equal(chat.getState().busy, false);
+  assert.equal(chat.getState().conversations.find((chat) => chat.id === second).busy, true);
+  assert.equal(await js(`document.querySelector('[data-conversation-id="${second}"]').classList.contains('busy')`), true);
   await click(`[data-conversation-id="${second}"] .history-select`);
-  await until(`document.querySelector('.history-item.active').dataset.conversationId === ${JSON.stringify(second)}`, 'return interrupted');
+  await until(`document.querySelector('.history-item.active').dataset.conversationId === ${JSON.stringify(second)}`, 'return to running chat');
+  assert.equal(chat.getState().busy, true);
+  assert.equal(await js('document.getElementById("stop").hidden'), false);
+  await click('#stop');
+  await until('document.getElementById("stop").hidden === true', 'stop running chat');
   assert.equal(chat.getState().messages.at(-1).interrupted, true);
   assert.match(chat.getState().messages.at(-1).text, /已生成的半条回答/);
   assert.equal(await js('document.querySelectorAll(".interrupted-note").length'), 1);
-  console.log('[history-ui] canceled/confirmed busy navigation and saved partial answer passed');
+  console.log('[history-ui] background runs survive navigation and can be stopped passed');
 
   win.setSize(420, 640);
   await sleep(200);
