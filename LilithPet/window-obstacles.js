@@ -28,7 +28,7 @@ function createWindowObstacleWatcher({ excludePids = [], onUpdate }) {
       const height = Number(item.height);
       if (![x, y, width, height].every(Number.isFinite)) continue;
       if (width < 40 || height < 40) continue;
-      windows.push({ x, y, width, height });
+      windows.push({ id: item.id, x, y, width, height });
     }
     onUpdate(windows);
   }

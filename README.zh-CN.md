@@ -12,8 +12,7 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS 双击启动器（需与 LilithPet 放在同一目录）
 ├── Lilith 桌宠.cmd       # Windows 双击启动器（需与 LilithPet 同目录）
 ├── Lilith/               # 原版 3D 模型源文件（FBX + 贴图）
-├── Deepseek_M/           # DeepSeek M 模型源文件（FBX + 贴图）
-└── Miku/                 # 初音未来模型源文件（FBX + 贴图）
+└── Deepseek_M/           # DeepSeek M 模型源文件（FBX + 贴图）
 ```
 
 ## 运行
@@ -101,9 +100,9 @@ npm start
 
 ## 模型
 
-应用内置三个 3D 模型：原版莉莉丝（`LilithPet/assets/lilith.glb`）、DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）和初音未来（`LilithPet/assets/miku.glb`，源文件在 `Miku/`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
+应用内置两个角色：莉莉丝（`LilithPet/assets/lilith.glb`，源文件在 `Lilith/`）和 DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`），另附带骨骼动画版本 `lilith_v5.glb`、`deepseek_v4.glb` 和 `deepseek_winter.glb`。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
 
-每个模型都有独立的本地台词和人格：莉莉丝温柔、诗意、带点调皮；DeepSeek M 冷静、简洁、偏理性，带一点克制的冷幽默；初音未来明亮、活泼、有音乐感，偶尔有点小得意。切换模型会同时切换本地台词和人格。Qoder 对话窗口使用的模型在该窗口里单独选择，不受这里影响。
+每个角色都有独立的本地台词和人格：莉莉丝温柔、诗意、带点调皮；DeepSeek M 冷静、简洁、偏理性，带一点克制的冷幽默。切换模型会同时切换本地台词和人格。Qoder 对话窗口使用的模型在该窗口里单独选择，不受这里影响。
 
 如需用 Blender 4.x 或更高版本从源文件重新生成 GLB：
 
@@ -111,10 +110,6 @@ npm start
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
   Deepseek_M/Deepseek_M.fbx LilithPet/assets/deepseek_m.glb \
   --texture Deepseek_M/Deepseek_M/Deepseek_M_basecolor.JPEG
-
-Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
-  Miku/Miku.fbx LilithPet/assets/miku.glb \
-  --texture Miku/Miku/Miku_basecolor.JPEG --height 0.98
 ```
 
 脚本会合并网格、减面到约 26 万三角面、把 8K 贴图缩到 4K 并导出 Y-up 的 GLB。`--height` 会把尺寸不同的角色统一缩放到应用内参考身高，不会修改源文件。

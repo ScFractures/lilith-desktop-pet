@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-QHspYcLLOKSarKa9WCONpLgp80qJjPebMyusqjGSeoo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; font-src 'self' data:" />
+<title>Lilith v5 · Studio</title>
+<link rel="stylesheet" href="./studio.css" />
+<script type="importmap">{"imports":{"three":"../node_modules/three/build/three.module.js","three/addons/":"../node_modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="app">
+  <main class="stage" id="stage">
+    <canvas id="scene"></canvas>
+
+    <div class="stage-shade"></div>
+
+    <header class="hud hud-top">
+      <div class="brand">
+        <span class="brand-name">Lilith</span>
+        <span class="brand-ver">v5</span>
+        <span class="brand-sub" id="brand-sub">四部件 · 569 骨骼 · 32 表情</span>
+      </div>
+      <div class="hud-buttons">
+        <button type="button" id="turntable-btn" class="ghost-button" aria-pressed="false">
+          <span class="dot"></span><span id="turntable-label">自动旋转</span>
+        </button>
+        <button type="button" id="camera-btn" class="ghost-button" title="重置视角">
+          <span class="icon-cam"></span><span id="camera-label">重置视角</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="hud hud-bottom" id="stage-hint">拖拽旋转 · 滚轮缩放 · 右键平移</div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p id="loading-text">正在加载模型…</p>
+      <span class="loading-sub" id="loading-sub">18 MB · 4 部件 · 569 骨骼</span>
+    </div>
+
+    <div class="fatal" id="fatal" hidden>
+      <div class="fatal-card">
+        <h2 id="fatal-title">模型加载失败</h2>
+        <p id="fatal-text"></p>
+        <button type="button" id="fatal-retry" class="primary-button">重试</button>
+      </div>
+    </div>
+  </main>
+
+  <aside class="panel">
+    <nav class="tabs" role="tablist" id="tabs">
+      <button type="button" role="tab" class="tab is-active" data-tab="parts" aria-selected="true" id="tab-parts">部件</button>
+      <button type="button" role="tab" class="tab" data-tab="expressions" aria-selected="false" id="tab-expressions">表情</button>
+      <button type="button" role="tab" class="tab" data-tab="bones" aria-selected="false" id="tab-bones">骨骼</button>
+      <button type="button" role="tab" class="tab" data-tab="view" aria-selected="false" id="tab-view">视图</button>
+    </nav>
+
+    <div class="panels">
+      <section class="panel-page is-active" data-page="parts" id="page-parts">
+        <div class="section-head">
+          <div>
+            <h2 id="parts-heading">部件</h2>
+            <p class="section-note" id="parts-note">四件套可以单独隐藏，也可以一键全部脱下。</p>
+          </div>
+          <span class="pill" id="parts-pill">4 / 4</span>
+        </div>
+        <div class="part-list" id="part-list"></div>
+        <div class="button-row">
+          <button type="button" class="soft-button" id="parts-all">全部穿上</button>
+          <button type="button" class="soft-button" id="parts-none">全部隐藏</button>
+          <button type="button" class="soft-button accent" id="parts-undress">无服装</button>
+        </div>
+
+        <div class="section-sep"></div>
+
+        <div class="section-head">
+          <div>
+            <h2 id="acc-heading">配饰</h2>
+            <p class="section-note" id="acc-note">发饰、手环、丝带、袜子与鞋子按材质单独控制。</p>
+          </div>
+          <span class="pill" id="acc-pill"></span>
+        </div>
+        <div class="acc-grid" id="acc-grid"></div>
+        <div class="button-row">
+          <button type="button" class="soft-button" id="acc-all">全部显示</button>
+          <button type="button" class="soft-button" id="acc-none">全部隐藏</button>
+        </div>
+        <p class="footnote" id="acc-footnote">隐藏上衣时，丝带和丝带晶体会跟随上衣一起隐藏。</p>
+      </section>
+
+      <section class="panel-page" data-page="expressions" id="page-expressions">
+        <div class="section-head">
+          <div>
+            <h2 id="expr-heading">表情</h2>
+            <p class="section-note" id="expr-note">32 个顶点表情，0–100% 连续可调，可叠加。</p>
+          </div>
+          <button type="button" class="text-button" id="expr-reset">全部归零</button>
+        </div>
+        <div class="preset-row" id="expr-presets"></div>
+        <div class="morph-groups" id="morph-groups"></div>
+      </section>
+
+      <section class="panel-page" data-page="bones" id="page-bones">
+        <div class="section-head">
+          <div>
+            <h2 id="bones-heading">骨骼</h2>
+            <p class="section-note" id="bones-note">569 根骨骼共用一个骨架，旋转会同步到四个部件。</p>
+          </div>
+          <button type="button" class="text-button" id="bones-reset">全部复位</button>
+        </div>
+        <label class="search-field">
+          <span class="icon-search"></span>
+          <input type="search" id="bone-search" spellcheck="false" autocomplete="off" placeholder="搜索骨骼…" />
+          <kbd id="bone-count">569</kbd>
+        </label>
+
+        <div class="bone-editor" id="bone-editor">
+          <div class="bone-editor-head">
+            <div>
+              <span class="bone-editor-name" id="bone-current">未选择骨骼</span>
+              <span class="bone-editor-alias" id="bone-current-alias"></span>
+            </div>
+            <button type="button" class="text-button" id="bone-reset" disabled>复位</button>
+          </div>
+          <div class="axis-row" data-axis="x">
+            <span class="axis-label axis-x">X</span>
+            <input type="range" min="-180" max="180" step="1" value="0" id="bone-x" disabled />
+            <output id="bone-x-value">0°</output>
+          </div>
+          <div class="axis-row" data-axis="y">
+            <span class="axis-label axis-y">Y</span>
+            <input type="range" min="-180" max="180" step="1" value="0" id="bone-y" disabled />
+            <output id="bone-y-value">0°</output>
+          </div>
+          <div class="axis-row" data-axis="z">
+            <span class="axis-label axis-z">Z</span>
+            <input type="range" min="-180" max="180" step="1" value="0" id="bone-z" disabled />
+            <output id="bone-z-value">0°</output>
+          </div>
+        </div>
+
+        <div class="pose-row" id="pose-presets"></div>
+        <div class="bone-list-head">
+          <span id="bone-list-title">常用骨骼</span>
+          <span class="bone-selected-dot" id="bone-selected-hint"></span>
+        </div>
+        <div class="bone-list" id="bone-list"></div>
+      </section>
+
+      <section class="panel-page" data-page="view" id="page-view">
+        <div class="section-head">
+          <div>
+            <h2 id="view-heading">视图</h2>
+            <p class="section-note" id="view-note">相机、旋转与辅助显示。</p>
+          </div>
+        </div>
+
+        <div class="option-row">
+          <span class="option-label" id="opt-turntable">自动旋转</span>
+          <label class="switch"><input type="checkbox" id="opt-turntable-input" /><span></span></label>
+        </div>
+        <div class="slider-row" id="turntable-speed-row">
+          <span class="option-label" id="opt-speed">旋转速度</span>
+          <input type="range" id="opt-speed-input" min="5" max="120" step="5" value="30" />
+          <output id="opt-speed-value">30%</output>
+        </div>
+        <div class="option-row">
+          <span class="option-label" id="opt-skeleton">显示骨骼线</span>
+          <label class="switch"><input type="checkbox" id="opt-skeleton-input" /><span></span></label>
+        </div>
+        <div class="option-row">
+          <span class="option-label" id="opt-ground">显示地台</span>
+          <label class="switch"><input type="checkbox" id="opt-ground-input" checked /><span></span></label>
+        </div>
+
+        <div class="section-sep"></div>
+        <h3 class="sub-heading" id="cam-heading">机位</h3>
+        <div class="cam-grid" id="cam-grid">
+          <button type="button" class="cam-button" data-view="front" id="cam-front">正面</button>
+          <button type="button" class="cam-button" data-view="threequarter" id="cam-threequarter">45°</button>
+          <button type="button" class="cam-button" data-view="side" id="cam-side">侧面</button>
+          <button type="button" class="cam-button" data-view="back" id="cam-back">背面</button>
+        </div>
+
+        <div class="section-sep"></div>
+        <h3 class="sub-heading" id="preview-heading">动作预览</h3>
+        <div class="preview-grid" id="preview-grid"></div>
+        <p class="footnote" id="preview-note">预览会临时接管骨骼和表情；点选骨骼或调整表情会自动停止预览。</p>
+
+        <div class="section-sep"></div>
+        <h3 class="sub-heading" id="stats-heading">模型信息</h3>
+        <dl class="stats" id="stats-list">
+          <div><dt id="stat-parts-label">部件</dt><dd id="stat-parts">4</dd></div>
+          <div><dt id="stat-bones-label">骨骼</dt><dd id="stat-bones">569</dd></div>
+          <div><dt id="stat-morphs-label">表情</dt><dd id="stat-morphs">32</dd></div>
+          <div><dt id="stat-materials-label">材质</dt><dd id="stat-materials">30</dd></div>
+          <div><dt id="stat-tris-label">三角面</dt><dd id="stat-tris">—</dd></div>
+          <div><dt id="stat-calls-label">绘制调用</dt><dd id="stat-calls">—</dd></div>
+        </dl>
+      </section>
+    </div>
+
+    <footer class="panel-foot">
+      <span id="foot-state">就绪</span>
+      <div class="foot-actions">
+        <button type="button" class="soft-button accent" id="look-apply">应用到桌宠</button>
+        <button type="button" class="soft-button danger" id="reset-all">全部重置</button>
+      </div>
+    </footer>
+  </aside>
+</div>
+<script type="module" src="./studio.js"></script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { createRig, collectLookEntries, lookSet, prepareModelMaterials } from './rig.js';
+import { createPetAnimator } from './pet-anim.js';
 
 const BOTTOM_INSET = 24;
 const FOV = 30;
@@ -9,6 +11,9 @@ const PET_HEIGHT_FRACTION = 0.613;
 // window height; the headroom above is for jumping
 const CAM_DIST = 1 / PET_HEIGHT_FRACTION / (2 * Math.tan((FOV / 2) * (Math.PI / 180)));
 const GRAVITY = 6.4;
+// Jump timeline: anticipation crouch, ballistic air, then landing absorption.
+const JUMP_CROUCH = 0.16;
+const JUMP_LAND = 0.22;
 const WALK_MIN = 105;
 const WALK_MAX = 165;
 
@@ -79,14 +84,18 @@ const state = {
   walkSpeed: 130,
   hopY: 0,
   hopV: 0,
-  spinExtra: 0,
-  spinLeft: 0,
-  wiggleLeft: 0,
+  jumpPhase: 'idle',
+  jumpT: 0,
+  jumpPower: 0,
   squash: { x: 0, v: 0 },
   idleTimer: 3.5,
   idleSayTimer: 600,
   dragging: false,
   pendingDrag: null,
+  heldStyle: 'hand',
+  sitStyle: 'front',
+  sitElapsed: 0,
+  sitReport: 0,
   hover: false,
   cursor: { x: 0, y: 0, inside: false },
   ignoreState: true,
@@ -98,15 +107,26 @@ const state = {
   model: null,
   persona: null,
   sound: true,
+  rig: null,
+  animator: null,
+  talkLeft: 0,
+  patLeft: 0,
 };
 window.__pet = state;
 
 let L = null;
 let phrases = {};
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const PERSONA_BY_MODEL = { lilith: 'lilith', deepseek_m: 'deepseek_m', deepseek_winter: 'deepseek_m', miku: 'miku' };
+const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_v5: 'lilith', deepseek_m: 'deepseek_m', deepseek_winter: 'deepseek_m', deepseek_v4: 'deepseek_m' };
 // Some FBX exports aren't aligned to their local +X; nudge the winter model toward its left 10°
 const MODEL_YAW_OFFSET = { deepseek_winter: (10 * Math.PI) / 180 };
+// The rigged GLBs are exported facing +Z, while the older assets face +X
+const MODEL_BASE_YAW = { lilith_v5: 0, deepseek_v4: 0 };
+const RIGGED_MODELS = new Set(['lilith_v5', 'deepseek_v4']);
+// Ground travel per full gait cycle, in body heights. Calibrated from the
+// planted foot's backward drift during flat-foot stance, so the window moves
+// exactly as far as the animation says the feet do and nothing skates.
+const RIGGED_STRIDE = { lilith_v5: 0.432, deepseek_v4: 0.370 };
 
 function applyPersona(model = state.model) {
   if (!L) return;
@@ -127,6 +147,10 @@ window.pet.on('sound-state', (on) => {
   state.sound = !!on;
   if (!on && audioEl && !audioEl.paused) audioEl.pause();
 });
+window.pet.on('look-changed', (look) => {
+  savedLook = look;
+  applyLook(look);
+});
 
 function disposeObject(root) {
   root.traverse((o) => {
@@ -144,6 +168,30 @@ function disposeObject(root) {
 }
 
 let modelLoadId = 0;
+let lookEntries = null;
+let savedLook = null;
+
+function applyLook(look) {
+  if (!state.rig || !lookEntries) return;
+  const set = lookSet(state.model);
+  const parts = {};
+  const acc = {};
+  for (const part of set.parts) parts[part.key] = !(look && look.parts && look.parts[part.key] === false);
+  for (const def of set.accessories) acc[def.id] = !(look && look.acc && look.acc[def.id] === false);
+
+  for (const part of set.parts) {
+    const node = lookEntries.partNodes[part.key];
+    if (node) node.visible = parts[part.key];
+  }
+  // The areola is a separate mesh layer that sits on top of the clothes. It
+  // must stay hidden while the pet is dressed.
+  for (const entry of state.rig.materials.get(set.areola.mats[0]) || []) entry.mesh.visible = !parts[set.areola.part];
+  for (const def of set.accessories) {
+    for (const entry of lookEntries.accEntries[def.id] || []) {
+      entry.material.visible = acc[def.id] && (!entry.part || parts[entry.part]);
+    }
+  }
+}
 
 async function loadModel(key) {
   const loadId = ++modelLoadId;
@@ -164,12 +212,17 @@ async function loadModel(key) {
       o.frustumCulled = false;
       const m = o.material;
       if (m) {
-        m.metalness = 0;
-        m.envMapIntensity = 0.5;
+        if (RIGGED_MODELS.has(key)) {
+          m.envMapIntensity = 0.9;
+        } else {
+          m.metalness = 0;
+          m.envMapIntensity = 0.5;
+        }
       }
     }
   });
-  model.rotation.y = -Math.PI / 2 + (MODEL_YAW_OFFSET[key] || 0);
+  prepareModelMaterials(key, model);
+  model.rotation.y = (MODEL_BASE_YAW[key] ?? -Math.PI / 2) + (MODEL_YAW_OFFSET[key] || 0);
   while (holder.children.length) {
     const old = holder.children[0];
     holder.remove(old);
@@ -188,14 +241,31 @@ async function loadModel(key) {
   holder.add(model);
   let box = new THREE.Box3().setFromObject(holder);
   const size = box.getSize(new THREE.Vector3());
-  holder.scale.setScalar(1 / size.y);
-  box = new THREE.Box3().setFromObject(holder);
+  // Normalize on the model itself: holder.scale is rewritten every frame by the
+  // squash-and-stretch spring, so it cannot carry the model normalization.
+  model.scale.setScalar(1 / size.y);
+  model.updateMatrixWorld(true);
+  box = new THREE.Box3().setFromObject(model);
   const c = box.getCenter(new THREE.Vector3());
-  holder.position.set(-c.x, -box.min.y, -c.z);
+  model.position.set(-c.x, -box.min.y, -c.z);
+  holder.updateMatrixWorld(true);
   pet.position.copy(savedPetPos);
   pet.rotation.copy(savedPetRot);
   pet.updateMatrixWorld(true);
+
+  state.animator = null;
+  state.rig = null;
+  lookEntries = null;
   state.model = key;
+  if (RIGGED_MODELS.has(key)) {
+    state.rig = createRig(model);
+    state.animator = createPetAnimator(state.rig, { model: key });
+    lookEntries = collectLookEntries(state.rig, key);
+    applyLook(savedLook);
+  }
+  state.talkLeft = 0;
+  state.patLeft = 0;
+
   console.log(`model loaded: ${key} meshes=${meshCount} size=${size.x.toFixed(3)},${size.y.toFixed(3)},${size.z.toFixed(3)}`);
   return true;
 }
@@ -253,6 +323,19 @@ function scheduleBodyReport(delay = 120) {
 
 function inRect(x, y, r) {
   return x >= r.l && x <= r.r && y >= r.t && y <= r.b;
+}
+
+function touchZoneAt(x, y) {
+  const r = petScreenRect();
+  if (!inRect(x, y, r)) return null;
+  const h = Math.max(1, r.b - r.t);
+  const w = Math.max(1, r.r - r.l);
+  const f = (y - r.t) / h;
+  const dx = Math.abs(x - (r.l + r.r) / 2) / w;
+  if (f < 0.30) return 'head';
+  if (f < 0.55 && dx < 0.28) return 'chest';
+  if (f < 0.72 && dx < 0.26) return 'lower';
+  return 'normal';
 }
 
 function setInteractive(v) {
@@ -315,6 +398,7 @@ function say(text, duration = 2300) {
     }
   }
   showBubble(text, ms);
+  state.talkLeft = Math.min(14, Math.max(1.4, ms / 1000));
 }
 
 function fillTemplate(template, vars) {
@@ -427,9 +511,12 @@ function spawnHeart(x, y) {
 }
 
 function hop(power = 1) {
+  if (state.mode === 'sitting') { window.pet.leavePerch(); return; }
   // Only jump from the ground; re-jumping mid-air stacks velocity and rapid clicks push her head out of the window
-  if (state.hopY > 0 || state.hopV > 0) return;
-  state.hopV = 1.9 * power;
+  if (state.hopY > 0 || state.hopV > 0 || state.jumpPhase === 'crouch') return;
+  state.jumpPhase = 'crouch';
+  state.jumpT = 0;
+  state.jumpPower = power;
 }
 
 function squashKick(d) {
@@ -461,28 +548,43 @@ async function doWalk() {
   window.pet.walkTo(targetX, state.walkSpeed);
 }
 
-function doSpin() {
-  state.spinLeft = 1.1;
-  state.mode = 'idle';
-  hop(0.7);
-  setTimeout(() => spawnHeart(window.innerWidth / 2, window.innerHeight * 0.42), 300);
-}
-
-function doJump() {
-  hop(1.3);
-}
-
 function doPat() {
   if (state.mode === 'sleeping') {
     say(pick(phrases.sleepyPat));
     return;
   }
-  hop(0.9);
-  state.wiggleLeft = 0.8;
+  state.patLeft = 1.6;
   say(pick(phrases.pat));
   const r = petScreenRect();
   spawnHeart((r.l + r.r) / 2 + (Math.random() - 0.5) * 40, r.t + 30);
   setTimeout(() => spawnHeart((r.l + r.r) / 2 + (Math.random() - 0.5) * 60, r.t + 10), 180);
+}
+
+function doTouch(zone) {
+  if (state.mode === 'sleeping') wakeUp();
+  if (state.mode === 'walking') {
+    window.pet.walkStop();
+    state.mode = 'idle';
+    scheduleIdle();
+  }
+  if (state.mode !== 'sitting') state.targetYaw = 0;
+  if (zone === 'head') {
+    doPat();
+    return;
+  }
+  if (zone === 'normal') {
+    say(pick(phrases.touch));
+    hop(0.55);
+    return;
+  }
+  const lines = (zone === 'chest' ? phrases.chest : phrases.lower) || phrases.pat;
+  say(pick(lines));
+  squashKick(zone === 'lower' ? -0.1 : 0.05);
+  hop(zone === 'lower' ? 0.5 : 0.85);
+  if (zone === 'chest') {
+    const r = petScreenRect();
+    spawnHeart((r.l + r.r) / 2 + (Math.random() - 0.5) * 30, r.t + (r.b - r.t) * 0.55);
+  }
 }
 
 function scheduleIdle() {
@@ -512,8 +614,6 @@ function inSleepWindow() {
 function enterSleep() {
   if (state.mode === 'sleeping' || state.dragging || state.mode === 'falling') return;
   if (state.mode === 'walking') window.pet.walkStop();
-  state.spinLeft = 0;
-  state.spinExtra = 0;
   state.mode = 'sleeping';
   state.targetYaw = Math.PI;
   squashKick(-0.08);
@@ -549,10 +649,24 @@ setInterval(sleepTick, 10000);
 function update(dt, t) {
   if (state.mode === 'loading' || !state.loaded) return;
 
+  if (state.talkLeft > 0) state.talkLeft -= dt;
+  if (state.patLeft > 0) state.patLeft -= dt;
+
   // squash-spring
   const s = state.squash;
   s.v += (-420 * s.x - 24 * s.v) * dt;
   s.x += s.v * dt;
+
+  // jump timeline: crouch, launch, ballistic air, then absorb the landing
+  if (state.jumpPhase === 'crouch') {
+    state.jumpT += dt;
+    if (state.jumpT >= JUMP_CROUCH) {
+      state.jumpPhase = 'air';
+      state.jumpT = 0;
+      state.hopV = 1.9 * state.jumpPower;
+      squashKick(0.05 * state.jumpPower);
+    }
+  }
 
   // hop physics
   if (state.hopV !== 0 || state.hopY > 0) {
@@ -562,19 +676,23 @@ function update(dt, t) {
       const impact = Math.abs(state.hopV);
       state.hopY = 0;
       state.hopV = 0;
+      state.jumpPhase = 'land';
+      state.jumpT = 0;
       squashKick(-0.05 - Math.min(0.18, impact * 0.06));
     }
   }
 
-  // spin
-  if (state.spinLeft > 0) {
-    const step = Math.min(state.spinLeft, dt);
-    state.spinExtra += (step / 1.1) * Math.PI * 2;
-    state.spinLeft -= dt;
-    if (state.spinLeft <= 0) state.spinExtra = 0;
+  if (state.jumpPhase === 'air') {
+    state.jumpT += dt;
+  } else if (state.jumpPhase === 'land') {
+    state.jumpT += dt;
+    if (state.jumpT >= JUMP_LAND) {
+      state.jumpPhase = 'idle';
+      state.jumpT = 0;
+    }
   }
 
-  const facing = state.targetYaw + state.spinExtra;
+  const facing = state.targetYaw;
   state.yaw += shortestArc(state.yaw, facing) * Math.min(1, dt * 5.5);
   // Normalize to (-π, π] so float error near π can't add a full extra turn
   if (state.yaw > Math.PI) state.yaw -= Math.PI * 2;
@@ -583,49 +701,84 @@ function update(dt, t) {
   // walk bob
   let bobY = 0, walkRoll = 0, walkPitch = 0;
   if (state.mode === 'walking') {
-    state.walkPhase += dt * (6.2 + state.walkSpeed * 0.012);
-    bobY = Math.abs(Math.sin(state.walkPhase)) * 0.032;
-    walkRoll = Math.sin(state.walkPhase * 2) * 0.028;
-    walkPitch = 0.065;
+    if (RIGGED_MODELS.has(state.model)) {
+      // Match the leg cycle to the window's ground speed so the planted foot
+      // does not slide across the desktop. The stride is the ground travel per
+      // full cycle, calibrated from the stance foot's drift while flat on the
+      // floor.
+      const stridePx = RIGGED_STRIDE[state.model] * window.innerHeight * PET_HEIGHT_FRACTION;
+      state.walkPhase += dt * (Math.PI * 2 * state.walkSpeed) / Math.max(40, stridePx);
+    } else {
+      state.walkPhase += dt * (6.2 + state.walkSpeed * 0.012);
+      bobY = Math.abs(Math.sin(state.walkPhase)) * 0.032;
+      walkRoll = Math.sin(state.walkPhase * 2) * 0.028;
+      walkPitch = 0.065;
+    }
   }
 
-  // drag dangle
+  // drag dangle: hoisted by one hand the body hangs away from the raised arm;
+  // held around the waist it drops straight down with every limb loose.
   let dragRoll = 0, dragPitch = 0, stretch = 0;
   if (state.dragging) {
-    dragRoll = Math.sin(t * 5.2) * 0.10;
-    dragPitch = 0.10;
-    stretch = 0.05;
+    if (RIGGED_MODELS.has(state.model)) {
+      // The v5 rig hangs its left arm on the opposite screen side from the
+      // DeepSeek rig, so its lean points the other way.
+      const waist = state.heldStyle === 'waist';
+      const lean = state.model === 'lilith_v5' ? -1 : 1;
+      dragRoll = waist ? 0 : lean * 0.21;
+      dragPitch = waist ? 0.06 : 0.13;
+      stretch = waist ? 0.05 : 0.04;
+    } else {
+      dragRoll = Math.sin(t * 5.2) * 0.10;
+      dragPitch = 0.10;
+      stretch = 0.05;
+    }
   } else if (state.mode === 'falling') {
     dragPitch = 0.05;
     stretch = 0.06;
   }
 
-  // wiggle (pat)
-  let wiggle = 0;
-  if (state.wiggleLeft > 0) {
-    wiggle = Math.sin(t * 15) * 0.05 * Math.min(1, state.wiggleLeft / 0.4);
-    state.wiggleLeft -= dt;
-  }
-
-  pet.position.y = bobY + state.hopY;
   pet.rotation.y = state.yaw;
   pet.rotation.x = walkPitch + dragPitch;
-  pet.rotation.z = walkRoll + dragRoll + wiggle;
+  pet.rotation.z = walkRoll + dragRoll;
 
   const sleeping = state.mode === 'sleeping';
-  const breath = Math.sin(t * (sleeping ? 1.05 : 1.7)) * (sleeping ? 0.017 : 0.011);
+  const breath = state.mode === 'sitting' ? 0
+    : Math.sin(t * (sleeping ? 1.05 : 1.7)) * (sleeping ? 0.017 : 0.011);
   const sy = 1 + s.x + breath + stretch;
   const sxz = 1 - (s.x + breath + stretch) * 0.55;
   holder.scale.set(sxz, sy, sxz);
 
+  // Skeletal life: breathing, walk cycle, talking gestures, sleep and drag poses
+  if (state.animator) {
+    const rootMotion = state.animator.update(dt, {
+      walking: state.mode === 'walking',
+      walkPhase: state.walkPhase,
+      talking: state.talkLeft > 0 && !sleeping && !state.dragging && state.mode !== 'falling',
+      sleeping,
+      dragging: state.dragging,
+      heldStyle: state.heldStyle,
+      sitting: state.mode === 'sitting',
+      sitStyle: state.sitStyle,
+      falling: state.mode === 'falling',
+      jumpPhase: state.jumpPhase,
+      jumpT: state.jumpT,
+      jumpPower: state.jumpPower,
+      pat: state.patLeft > 0 ? Math.min(1, state.patLeft / 0.8) : 0,
+    });
+    if (RIGGED_MODELS.has(state.model) && rootMotion) bobY += rootMotion.bob;
+  }
+  pet.position.y = bobY + state.hopY;
+
   // blob shadow
   const lift = state.hopY;
   const bs = 1 + lift * 0.6;
+  blob.visible = state.mode !== 'sitting';
   blob.scale.set(bs, bs, 1);
   blob.material.opacity = Math.max(0.08, 0.9 / (1 + lift * 2.6));
 
   // idle scheduler
-  if (state.mode === 'idle' && !state.dragging && !state.pendingDrag && state.spinLeft <= 0) {
+  if (state.mode === 'idle' && !state.dragging && !state.pendingDrag) {
     state.idleTimer -= dt;
     if (state.idleTimer <= 0) {
       scheduleIdle();
@@ -635,6 +788,35 @@ function update(dt, t) {
     if (state.idleSayTimer <= 0) {
       state.idleSayTimer = 540 + Math.random() * 120;
       say(pick(phrases.idle));
+    }
+  }
+
+  if (state.mode === 'sitting') {
+    state.sitElapsed += dt;
+    state.sitReport += dt;
+    if (state.sitElapsed > 0.8 && state.sitReport > 0.1 && state.rig) {
+      state.sitReport = 0;
+      pet.updateMatrixWorld(true);
+      const hips = ['左足', '右足'].map(name => state.rig.bones.get(name)?.[0]).filter(Boolean);
+      if (hips.length) {
+        const anchor = new THREE.Vector3();
+        for (const bone of hips) anchor.add(bone.getWorldPosition(new THREE.Vector3()));
+        anchor.multiplyScalar(1 / hips.length);
+        // The seat contact is just below the hip joints. In the curled pose
+        // keep hips and tucked feet wholly above the window's inner bottom.
+        if (state.sitStyle === 'curl') {
+          // Use the lowest actual foot/toe as the inner-floor contact, not a
+          // standing-height estimate: all three rigs have different leg ratios.
+          for (const name of ['左足首', '右足首', '左つま先', '右つま先']) {
+            const bone = state.rig.bones.get(name)?.[0];
+            if (bone) anchor.y = Math.min(anchor.y, bone.getWorldPosition(new THREE.Vector3()).y);
+          }
+          anchor.y -= 0.025;
+        } else anchor.y -= 0.025;
+        anchor.project(camera);
+        window.pet.perchReady({ x: (anchor.x + 1) * window.innerWidth / 2,
+          y: (1 - anchor.y) * window.innerHeight / 2 });
+      }
     }
   }
 
@@ -688,8 +870,13 @@ canvas.addEventListener('mousemove', (e) => {
     const dy = e.clientY - state.pendingDrag.y;
     if (Math.hypot(dx, dy) > 4) {
       wakeUp();
+      if (state.jumpPhase === 'crouch') {
+        state.jumpPhase = 'idle';
+        state.jumpT = 0;
+      }
       state.dragging = true;
       state.mode = 'drag';
+      state.heldStyle = Math.random() < 0.5 ? 'hand' : 'waist';
       window.pet.dragStart({ offsetX: e.clientX, offsetY: e.clientY });
       if (Math.random() < 0.5) say(pick(phrases.drag), 1400);
     }
@@ -726,11 +913,18 @@ window.addEventListener('mouseup', (e) => {
   }
   if (state.pendingDrag) {
     state.pendingDrag = null;
+    const px = e.clientX;
+    const py = e.clientY;
     clearTimeout(clickTimer);
     clickTimer = setTimeout(() => {
-      wakeUp({ say: true });
-      hop(0.75 + Math.random() * 0.3);
-      state.targetYaw = 0;
+      const zone = RIGGED_MODELS.has(state.model) ? touchZoneAt(px, py) : null;
+      if (zone) {
+        doTouch(zone);
+      } else {
+        wakeUp({ say: true });
+        hop(0.75 + Math.random() * 0.3);
+        state.targetYaw = 0;
+      }
     }, 230);
   }
 });
@@ -751,7 +945,26 @@ canvas.addEventListener('contextmenu', (e) => {
 });
 
 window.pet.on('pet-event', (name, data) => {
-  if (name === 'land') {
+  if (name === 'perch-start') {
+    if (!state.loaded || !state.animator || state.dragging || state.mode === 'sleeping') {
+      window.pet.leavePerch();
+      return;
+    }
+    state.mode = 'sitting';
+    state.sitStyle = data.style;
+    state.sitElapsed = state.sitReport = 0;
+    state.targetYaw = data.style === 'curl' ? data.side * Math.PI / 2 : 0;
+    state.hopY = state.hopV = 0;
+    state.jumpPhase = 'idle';
+    state.squash.x = state.squash.v = 0;
+  } else if (name === 'perch-end') {
+    if (state.mode === 'sitting') {
+      state.mode = 'idle';
+      state.targetYaw = 0;
+      scheduleIdle();
+    }
+    scheduleBodyReport(1000);
+  } else if (name === 'land') {
     if (state.dragging) return;
     const speed = data && data.speed ? data.speed : 0;
     state.mode = 'idle';
@@ -791,14 +1004,10 @@ window.pet.on('pet-cmd', (cmd) => {
   if (!state.loaded) return;
   if (cmd === 'pat') doPat();
   else if (cmd === 'qoder-balance') speakQoderBalance();
-  else if (cmd === 'walk') { wakeUp(); if (state.mode === 'idle') doWalk(); }
-  else if (cmd === 'spin') { wakeUp(); doSpin(); }
-  else if (cmd === 'jump') { wakeUp(); doJump(); }
   else if (cmd === 'greet') {
     wakeUp();
     state.targetYaw = 0;
     say(pick(phrases.greet));
-    hop(0.8);
     scheduleIdle();
   } else if (cmd === 'sleep-toggle') {
     if (state.mode === 'sleeping') wakeUp({ say: true });
@@ -835,6 +1044,9 @@ window.pet.on('pet-model', async (key) => {
   try {
     const info = await window.pet.getInfo().catch(() => null);
     if (info) state.sound = info.sound !== false;
+    if (typeof window.pet.getLook === 'function') {
+      savedLook = await window.pet.getLook().catch(() => null);
+    }
     await loadModel((info && info.model) || 'lilith');
     applyPersona(state.model);
     state.loaded = true;

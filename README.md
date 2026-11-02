@@ -12,8 +12,7 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS double-click launcher (must stay next to LilithPet/)
 ├── Lilith 桌宠.cmd       # Windows launcher (double-click; must stay next to LilithPet/)
 ├── Lilith/               # original 3D model source (FBX + textures)
-├── Deepseek_M/           # DeepSeek M model source (FBX + textures)
-└── Miku/                 # Hatsune Miku model source (FBX + texture)
+└── Deepseek_M/           # DeepSeek M model source (FBX + textures)
 ```
 
 ## Getting started
@@ -101,9 +100,9 @@ Messages go only to the provider you selected: the Qoder CLI for Qoder models, o
 
 ## Models
 
-Three 3D models are included: the original Lilith (`LilithPet/assets/lilith.glb`), DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`) and Hatsune Miku (`LilithPet/assets/miku.glb`, source in `Miku/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
+Two characters are included: Lilith (`LilithPet/assets/lilith.glb`, source in `Lilith/`) and DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`). Rigged, fully animated variants are also bundled as `lilith_v5.glb`, `deepseek_v4.glb` and `deepseek_winter.glb`. Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
 
-Each model has its own local voice and persona: Lilith is gentle, poetic and playful; DeepSeek M has a calm, concise, analytical persona with a dry sense of humor; Miku is bright, musical and a little mischievous. Switching models swaps the local lines and persona. The model used by the Qoder chat window is selected independently inside that window.
+Each character has its own local voice and persona: Lilith is gentle, poetic and playful; DeepSeek M has a calm, concise, analytical persona with a dry sense of humor. Switching models swaps the local lines and persona. The model used by the Qoder chat window is selected independently inside that window.
 
 To regenerate a GLB from its source file with Blender 4.x or newer:
 
@@ -111,10 +110,6 @@ To regenerate a GLB from its source file with Blender 4.x or newer:
 Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
   Deepseek_M/Deepseek_M.fbx LilithPet/assets/deepseek_m.glb \
   --texture Deepseek_M/Deepseek_M/Deepseek_M_basecolor.JPEG
-
-Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
-  Miku/Miku.fbx LilithPet/assets/miku.glb \
-  --texture Miku/Miku/Miku_basecolor.JPEG --height 0.98
 ```
 
 The script joins the meshes, decimates to ~260k triangles, downscales the 8K atlas to 4K and exports a Y-up GLB. `--height` rescales characters authored at a different size to the in-app reference height. It never modifies the source files.

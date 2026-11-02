@@ -8,6 +8,7 @@ const { queryQoderBalance } = require('./qoder-balance');
 const { createQoderChat } = require('./qoder-chat');
 const { createCustomModelStore } = require('./custom-models');
 const { createImagegen } = require('./imagegen');
+const windowPerching = require('./window-perching');
 const windowAvoidance = require('./window-avoidance');
 const { createWindowObstacleWatcher, supported: windowAvoidSupported } = require('./window-obstacles');
 
@@ -19,7 +20,8 @@ if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-c
 // Window sizes include ~150-260px of transparent headroom above the pet so a jump never clips her head
 const WINDOW_SIZES = { small: [270, 458], medium: [340, 560], large: [430, 725] };
 // Model key -> i18n label key. The GLB files live in LilithPet/assets/.
-const MODELS = { lilith: 'modelLilith', deepseek_m: 'modelDeepseek', deepseek_winter: 'modelDeepseekWinter', miku: 'modelMiku' };
+const MODELS = { lilith: 'modelLilith', lilith_v5: 'modelLilithV5', deepseek_v4: 'modelDeepseekV4', deepseek_m: 'modelDeepseek', deepseek_winter: 'modelDeepseekWinter' };
+const STUDIO_MODELS = new Set(['lilith_v5', 'deepseek_v4']);
 const DEFAULT_MODEL = 'lilith';
 const FLOOR_INSET = 24;
 const GRAVITY = 2600;
@@ -28,12 +30,35 @@ const WALK_TICK = 16;
 let win = null;
 let chatWin = null;
 let modelsWin = null;
+let studioWin = null;
+let studioModel = null;
 let qoderChat = null;
 let customModels = null;
 let imagegen = null;
 let tray = null;
 let cfgFile = null;
-const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, qoderChatBounds: null, avoidWindows: true, sound: true };
+const settings = { x: null, y: null, size: 'medium', lang: null, model: DEFAULT_MODEL, qoderChatBounds: null, avoidWindows: true, sound: true, look: null };
+
+const LOOK_PART_KEYS = ['Body', 'Top', 'Skirt', 'Panties', 'Cloth'];
+const LOOK_ACC_KEYS = ['hairpin', 'headband', 'hairband', 'bracelets', 'ribbon', 'crystal', 'socks', 'shoes'];
+// Both rigged models share one persisted look. A studio only submits its own
+// model's keys, so missing keys keep their previous value instead of resetting
+// the other model's outfit.
+function normalizeLook(raw, base) {
+  const parts = {};
+  const acc = {};
+  for (const key of LOOK_PART_KEYS) {
+    parts[key] = raw && raw.parts && key in raw.parts
+      ? raw.parts[key] !== false
+      : !(base && base.parts && base.parts[key] === false);
+  }
+  for (const key of LOOK_ACC_KEYS) {
+    acc[key] = raw && raw.acc && key in raw.acc
+      ? raw.acc[key] !== false
+      : !(base && base.acc && base.acc[key] === false);
+  }
+  return { parts, acc };
+}
 
 const T = () => STRINGS[settings.lang] || STRINGS.zh;
 
@@ -55,6 +80,9 @@ if (TEST_MODE) {
 }
 let walkState = null;
 let petSleeping = false;
+let perch = null;
+let perchTimer = null;
+let perchFollowTimer = null;
 
 // Bottom-edge avoidance: on-screen window rects from other apps, the pet's
 // rendered body rect reported by the renderer, and whether we hid her because no
@@ -90,6 +118,7 @@ function loadCfg() {
   if (!MODELS[settings.model]) settings.model = DEFAULT_MODEL;
   if (typeof settings.avoidWindows !== 'boolean') settings.avoidWindows = true;
   if (typeof settings.sound !== 'boolean') settings.sound = true;
+  settings.look = normalizeLook(settings.look);
   settings.lang = normalizeLang(settings.lang) || langFromLocale(app.getLocale());
 }
 
@@ -317,6 +346,67 @@ ipcMain.handle('open-models', () => {
 
 ipcMain.handle('models-close', () => {
   if (modelsWin && !modelsWin.isDestroyed()) modelsWin.close();
+  return { ok: true };
+});
+
+// ---------------------------------------------------------------- model studio
+function studioTitle(model) {
+  if (model === 'deepseek_v4') return T().studioTitleDeepseek;
+  return T().studioTitle;
+}
+
+function openStudio(requested) {
+  const model = STUDIO_MODELS.has(requested) ? requested
+    : (STUDIO_MODELS.has(settings.model) ? settings.model : 'lilith_v5');
+  if (studioWin && !studioWin.isDestroyed()) {
+    if (studioModel === model) {
+      if (studioWin.isMinimized()) studioWin.restore();
+      studioWin.show();
+      studioWin.focus();
+      return;
+    }
+    studioModel = model;
+    studioWin.setTitle(studioTitle(model));
+    studioWin.loadFile(path.join(__dirname, 'renderer', 'studio.html'), { query: { model } });
+    studioWin.show();
+    studioWin.focus();
+    return;
+  }
+  studioModel = model;
+  studioWin = new BrowserWindow({
+    width: 1280,
+    height: 860,
+    minWidth: 1000,
+    minHeight: 680,
+    show: false,
+    title: studioTitle(model),
+    backgroundColor: '#0f1016',
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'studio-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+    },
+  });
+  studioWin.setMenuBarVisibility(false);
+  studioWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  studioWin.webContents.on('will-navigate', (event) => event.preventDefault());
+  studioWin.once('ready-to-show', () => {
+    if (!studioWin || studioWin.isDestroyed()) return;
+    studioWin.show();
+    studioWin.focus();
+  });
+  studioWin.webContents.once('did-finish-load', () => {
+    if (!studioWin || studioWin.isDestroyed()) return;
+    studioWin.webContents.send('studio-event', { type: 'lang', lang: settings.lang });
+  });
+  studioWin.on('closed', () => { studioWin = null; studioModel = null; });
+  studioWin.loadFile(path.join(__dirname, 'renderer', 'studio.html'), { query: { model } });
+}
+
+ipcMain.handle('open-studio', (_e, model) => {
+  openStudio(model);
   return { ok: true };
 });
 
@@ -562,6 +652,10 @@ function setLanguage(lang) {
   if (chatWin && !chatWin.isDestroyed()) {
     chatWin.webContents.send('qoder-chat-event', { type: 'lang', lang: settings.lang });
   }
+  if (studioWin && !studioWin.isDestroyed()) {
+    studioWin.setTitle(studioTitle(studioModel));
+    studioWin.webContents.send('studio-event', { type: 'lang', lang: settings.lang });
+  }
   if (tray) refreshTrayMenu();
 }
 
@@ -637,7 +731,7 @@ function stopFall() {
 }
 
 function persistPos() {
-  if (!win) return;
+  if (!win || perch) return;
   const b = win.getBounds();
   settings.x = b.x;
   settings.y = b.y;
@@ -809,7 +903,7 @@ function scheduleAvoidCheck() {
 function checkAvoidance() {
   if (!windowAvoidSupported || !settings.avoidWindows) return;
   if (!win || win.isDestroyed() || !avoidBody) return;
-  if (dragging || fallTimer) return;
+  if (dragging || fallTimer || perch) return;
   const visible = win.isVisible();
   if (!visible && !avoidHidden) return;
 
@@ -857,7 +951,7 @@ function checkAvoidance() {
 }
 
 function startAvoidWatcher() {
-  if (!windowAvoidSupported || !settings.avoidWindows || avoidWatcher) return;
+  if (!windowAvoidSupported || avoidWatcher) return;
   if (TEST_MODE && process.env.PET_TEST_AVOID !== '1') return;
   if (TEST_MODE && process.env.PET_TEST_AVOID_FAKE) {
     let lastText = null;
@@ -887,6 +981,56 @@ function startAvoidWatcher() {
   scheduleAvoidCheck();
 }
 
+// Sitting uses the same privacy-preserving window watcher as avoidance.
+function perchDimensions() {
+  const h = win.getBounds().height * 0.613;
+  return { width: Math.max(120, h * 0.62), height: h * 0.60, footDrop: h * 0.34 };
+}
+function leavePerch(fall = true) {
+  if (!perch) return;
+  perch = null;
+  send('pet-event', 'perch-end', {});
+  if (fall && win && !win.isDestroyed()) {
+    send('pet-event', 'released', {});
+    startFall(0, 0);
+  }
+}
+function followPerch() {
+  if (!perch || !win || win.isDestroyed()) return;
+  if (Date.now() >= perch.until || petSleeping || !STUDIO_MODELS.has(settings.model)) return leavePerch();
+  const sites = windowPerching.candidates(avoidObstacles, screen.getAllDisplays(), perchDimensions());
+  const target = avoidObstacles.find(w => w.id === perch.id);
+  const x = target && target.x + target.width * perch.fraction;
+  const site = sites.find(s => s.id === perch.id && x >= s.left && x <= s.right
+    && (perch.style !== 'front' || s.front));
+  if (!site) return leavePerch();
+  if (!perch.ready) return;
+  const b = win.getBounds();
+  const nx = Math.round(x - perch.anchor.x);
+  const ny = Math.round(site.edge - perch.anchor.y);
+  if (nx !== b.x || ny !== b.y) win.setPosition(nx, ny);
+}
+function tryPerch() {
+  if (!win || win.isDestroyed() || !win.isVisible() || avoidHidden || dragging || fallTimer
+      || petSleeping || perch || !STUDIO_MODELS.has(settings.model)) return;
+  const site = windowPerching.chooseSite(avoidObstacles, screen.getAllDisplays(), perchDimensions());
+  if (!site) return; // Try again at the next ten-minute interval.
+  stopWalk();
+  perch = { ...site, ready: false, home: win.getBounds(), until: Date.now() + 60000 + Math.random() * 60000 };
+  send('pet-event', 'perch-start', { style: site.style, side: site.side });
+}
+function startPerching() {
+  perchTimer = setInterval(tryPerch, windowPerching.INTERVAL);
+  perchFollowTimer = setInterval(followPerch, 100);
+}
+ipcMain.on('perch-ready', (_e, data) => {
+  if (!perch || !data || !Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
+  perch.anchor = { x: data.x, y: data.y };
+  perch.ready = true;
+  followPerch();
+});
+ipcMain.on('perch-leave', () => leavePerch());
+
 function stopAvoidWatcher() {
   if (avoidWatcher) {
     avoidWatcher.stop();
@@ -902,7 +1046,6 @@ function setAvoidWindows(on) {
     startAvoidWatcher();
     scheduleAvoidCheck();
   } else {
-    stopAvoidWatcher();
     restoreAvoidHidden();
   }
   refreshTrayMenu();
@@ -916,6 +1059,7 @@ function setSound(on) {
 }
 
 function applySize(size) {
+  leavePerch();
   if (!WINDOW_SIZES[size]) return;
   settings.size = size;
   if (!win) return;
@@ -950,6 +1094,7 @@ function toggleVisible(force) {
 }
 
 function resetPosition() {
+  leavePerch();
   if (!win) return;
   const wa = screen.getPrimaryDisplay().workArea;
   const b = win.getBounds();
@@ -1065,6 +1210,7 @@ function languageSubmenu(onPick) {
 
 function selectModel(key) {
   if (!MODELS[key] || settings.model === key) return;
+  leavePerch();
   settings.model = key;
   if (cfgFile) {
     try { fs.writeFileSync(cfgFile, JSON.stringify(settings)); } catch {}
@@ -1104,6 +1250,7 @@ function trayMenuTemplate() {
     },
     modelSubmenu(refreshTrayMenu),
     languageSubmenu(refreshTrayMenu),
+    { label: t.menuStudio, click: () => openStudio() },
     {
       label: t.menuSound,
       type: 'checkbox',
@@ -1142,10 +1289,11 @@ ipcMain.on('set-ignore-mouse', (_e, ignore) => {
   if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!!ignore, { forward: true });
 });
 
-ipcMain.on('pet-sleep', (_e, v) => { petSleeping = !!v; });
+ipcMain.on('pet-sleep', (_e, v) => { if (v) leavePerch(); petSleeping = !!v; });
 
 ipcMain.on('drag-start', (_e, { offsetX, offsetY }) => {
   if (!win) return;
+  leavePerch(false);
   stopWalk();
   stopFall();
   dragging = true;
@@ -1168,7 +1316,7 @@ ipcMain.on('drag-end', () => {
   send('pet-event', 'released', { vx: releaseVel.x, vy: releaseVel.y });
 });
 
-ipcMain.on('walk-to', (_e, targetX, speed) => startWalk(targetX, speed));
+ipcMain.on('walk-to', (_e, targetX, speed) => { if (!perch) startWalk(targetX, speed); });
 ipcMain.on('walk-stop', () => { stopWalk(); persistPos(); send('pet-event', 'walk-arrived', {}); });
 
 ipcMain.on('pet-body', (_e, rect) => {
@@ -1201,6 +1349,16 @@ ipcMain.handle('read-asset', (_e, relPath) => {
   return fs.readFileSync(full);
 });
 
+ipcMain.handle('look-get', () => settings.look);
+ipcMain.handle('look-apply', (_e, raw) => {
+  settings.look = normalizeLook(raw, settings.look);
+  if (cfgFile) {
+    try { fs.writeFileSync(cfgFile, JSON.stringify(settings)); } catch {}
+  }
+  send('look-changed', settings.look);
+  return settings.look;
+});
+
 ipcMain.on('set-size', (_e, size) => applySize(size));
 
 ipcMain.on('context-menu', (_e, at) => {
@@ -1209,11 +1367,8 @@ ipcMain.on('context-menu', (_e, at) => {
   const menu = Menu.buildFromTemplate([
     { label: t.menuQoderChat, click: () => openQoderChat() },
     { label: t.menuQoderBalance, click: () => send('pet-cmd', 'qoder-balance') },
+    { label: t.menuStudio, click: () => openStudio() },
     { type: 'separator' },
-    { label: t.menuPat, click: () => send('pet-cmd', 'pat') },
-    { label: t.menuWalk, click: () => send('pet-cmd', 'walk') },
-    { label: t.menuSpin, click: () => send('pet-cmd', 'spin') },
-    { label: t.menuJump, click: () => send('pet-cmd', 'jump') },
     { label: t.menuGreet, click: () => send('pet-cmd', 'greet') },
     { label: petSleeping ? t.menuWake : t.menuSleep, click: () => send('pet-cmd', 'sleep-toggle') },
     { type: 'separator' },
@@ -1413,31 +1568,19 @@ function runInteractionTest() {
     console.log('[test] after land:', await js(`JSON.stringify({mode:window.__pet.mode})`));
     await shot('e_landed');
 
-    // --- menu commands: jump & spin ---
-    const jumpProbe = js(`new Promise(res => { const st = window.__pet; let mx = 0; const t0 = performance.now(); const id = setInterval(() => { if (st.hopY > mx) mx = st.hopY; if (performance.now() - t0 > 1000) { clearInterval(id); res(mx); } }, 25); })`);
-    send('pet-cmd', 'jump');
-    await wait(390);
-    await shot('i_jump_apex');
-    const maxHopY = await jumpProbe;
-    const innerH = await js(`window.innerHeight`);
-    // 24 is BOTTOM_INSET and 0.613 is PET_HEIGHT_FRACTION, both matching renderer/app.js
-    const petTopPx = 24 + innerH * 0.613 * (1 + maxHopY);
-    console.log('[test] jump apex:', JSON.stringify({ maxHopY: Number(maxHopY.toFixed(3)), petTopPx: Math.round(petTopPx), innerH, fits: petTopPx <= innerH - 4 }));
-    send('pet-cmd', 'spin');
-    await wait(200);
-    console.log('[test] spin:', await js(`JSON.stringify({spinLeft:window.__pet.spinLeft})`));
-    await wait(1200);
-
-    // --- auto walk must keep working ---
-    send('pet-cmd', 'walk');
+    // --- menu commands: headpat no longer hops; walk/spin/jump were removed ---
+    send('pet-cmd', 'pat');
     await wait(300);
-    const wx1 = await js(`window.pet.getInfo().then(i => i.bounds.x)`);
-    const wmode1 = await js(`window.__pet.mode`);
-    await wait(1200);
-    const wx2 = await js(`window.pet.getInfo().then(i => i.bounds.x)`);
-    console.log('[test] walk:', JSON.stringify({mode: wmode1, x1: wx1, x2: wx2, moved: wx1 !== wx2}));
-    for (let i = 0; i < 30 && (await js(`window.__pet.mode`)) === 'walking'; i++) await wait(400);
-    console.log('[test] walk-arrived mode:', await js(`window.__pet.mode`));
+    console.log('[test] pat:', await js(`JSON.stringify({ patLeft: Number(window.__pet.patLeft.toFixed(2)), hopY: window.__pet.hopY, mode: window.__pet.mode })`));
+    await shot('i_pat');
+    const innerH = await js(`window.innerHeight`);
+    const removed = {};
+    for (const cmd of ['walk', 'spin', 'jump']) {
+      send('pet-cmd', cmd);
+      await wait(220);
+      removed[cmd] = await js(`JSON.stringify({ mode: window.__pet.mode, hopY: window.__pet.hopY })`);
+    }
+    console.log('[test] removed commands:', JSON.stringify(removed));
 
     // --- rapid clicks: no re-jump while airborne, otherwise stacked hops push her head out of the window ---
     const rapidProbe = js(`new Promise(res => { const st = window.__pet; let mx = 0; const t0 = performance.now(); const id = setInterval(() => { if (st.hopY > mx) mx = st.hopY; if (performance.now() - t0 > 3600) { clearInterval(id); res(mx); } }, 20); })`);
@@ -1656,6 +1799,7 @@ app.whenReady().then(() => {
   buildTray();
   if (process.platform === 'win32' && !TEST_MODE) startFullscreenWatcher();
   startAvoidWatcher();
+  startPerching();
   startFall(0, 0);
   win.webContents.once('did-finish-load', () => {
     send('pet-event', 'land', { speed: 0.15 });
@@ -1673,9 +1817,7 @@ app.whenReady().then(() => {
       app.quit();
     }, Number(delayMs) || 2500);
   }
-  if (TEST_MODE) {
-    if (!process.env.PET_TEST_AVOID) runInteractionTest();
-  }
+  if (TEST_MODE && !process.env.PET_TEST_AVOID) runInteractionTest();
   screen.on('display-metrics-changed', () => {
     if (!win) return;
     const b = win.getBounds();
@@ -1690,7 +1832,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {});
 app.on('before-quit', () => {
-  persistPos();
+  clearInterval(perchTimer);
+  clearInterval(perchFollowTimer);
+  if (perch) { settings.x = perch.home.x; settings.y = perch.home.y; }
+  else persistPos();
   if (avoidWatcher) { avoidWatcher.stop(); avoidWatcher = null; }
   if (chatWin && !chatWin.isDestroyed()) {
     settings.qoderChatBounds = chatWin.getBounds();
