@@ -26,6 +26,7 @@ function snapshot() {
     if (!(width >= 40) || !(height >= 40)) continue;
     out.push({
       pid: ObjC.unwrap(entry.objectForKey('kCGWindowOwnerPID')),
+      id: ObjC.unwrap(entry.objectForKey('kCGWindowNumber')),
       x: Math.round(x),
       y: Math.round(y),
       width: Math.round(width),

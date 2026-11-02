@@ -12,8 +12,7 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS double-click launcher (must stay next to LilithPet/)
 ├── Lilith 桌宠.cmd       # Windows launcher (double-click; must stay next to LilithPet/)
 ├── Lilith/               # original 3D model source (FBX + textures)
-├── Deepseek_M/           # DeepSeek M model source (FBX + textures)
-└── Miku/                 # Hatsune Miku source texture (FBX not bundled)
+└── Deepseek_M/           # DeepSeek M model source (FBX + textures)
 ```
 
 ## Getting started
@@ -95,9 +94,9 @@ Messages go only to the Base URL of the custom model you selected. If you used a
 
 ## Models
 
-Three models are included: the original Lilith (`LilithPet/assets/lilith.glb`), DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`) and Hatsune Miku (`LilithPet/assets/miku.glb`, source texture in `Miku/`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
+Four models are included: classic Lilith (`LilithPet/assets/lilith.glb`), the rigged and animated Lilith v5 (`LilithPet/assets/lilith_v5.glb`), DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`) and the rigged DeepSeek Girl v4 (`LilithPet/assets/deepseek_v4.glb`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch. The two rigged models also support the **Model studio** for expressions, outfit parts and accessories.
 
-Each model has its own standalone voice and AI persona: Lilith is gentle, poetic and playful; DeepSeek M has a calm, concise, analytical persona with a dry sense of humor; Miku is bright, musical and a little mischievous. Switching models swaps the AI system prompt and all local lines; chat conversations stay available in the history panel.
+Each character has its own standalone voice and AI persona: Lilith is gentle, poetic and playful; DeepSeek M has a calm, concise, analytical persona with a dry sense of humor. Switching models swaps the AI system prompt and all local lines; chat conversations stay available in the history panel.
 
 To regenerate a GLB from its source file with Blender 4.x or newer:
 
@@ -106,8 +105,6 @@ Blender -b --python LilithPet/scripts/import_fbx_glb.py -- \
   Deepseek_M/Deepseek_M.fbx LilithPet/assets/deepseek_m.glb \
   --texture Deepseek_M/Deepseek_M/Deepseek_M_basecolor.JPEG
 ```
-
-The Miku GLB was generated from the author's FBX with the same script and `--height 0.98`; the FBX source is not bundled in this repository.
 
 The script joins the meshes, decimates to ~260k triangles, downscales the 8K atlas to 4K and exports a Y-up GLB. `--height` rescales characters authored at a different size to the in-app reference height. It never modifies the source files.
 
