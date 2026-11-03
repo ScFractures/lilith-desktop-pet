@@ -15,13 +15,14 @@ const { createWindowObstacleWatcher, supported: windowAvoidSupported } = require
 // hardware, and is harmless where it is not needed
 if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-composition');
 
-// Window sizes include ~150-260px of transparent headroom above the pet so a jump never clips her head
-const WINDOW_SIZES = { small: [270, 458], medium: [340, 560], large: [430, 725] };
+// Transparent side gutters accommodate carried arms/hair and turning poses.
+// Height is unchanged so the pet retains its previous on-screen size.
+const WINDOW_SIZES = { small: [410, 458], medium: [520, 560], large: [670, 725] };
 // Model key -> i18n label key. The GLB files live in LilithPet/assets/.
-const MODELS = { lilith: 'modelLilith', lilith_v5: 'modelLilithV5', deepseek_v4: 'modelDeepseekV4', deepseek_m: 'modelDeepseek' };
+const MODELS = { lilith: 'modelLilith', lilith_v5: 'modelLilithV5', deepseek_v4: 'modelDeepseekV4', deepseek_m: 'modelDeepseekMcdonald', deepseek: 'modelDeepseek' };
 const STUDIO_MODELS = new Set(['lilith_v5', 'deepseek_v4']);
 const DEFAULT_MODEL = 'lilith';
-const FLOOR_INSET = 24;
+const FLOOR_INSET = 48;
 const GRAVITY = 2600;
 const WALK_TICK = 16;
 
@@ -922,7 +923,13 @@ function startAvoidWatcher() {
     return;
   }
   avoidWatcher = createWindowObstacleWatcher({
-    excludePids: [process.pid],
+    // getMediaSourceId uses the same macOS window number as CGWindowList.
+    // Do not exclude process.pid: our chat/settings/studio share that PID.
+    excludeWindowIds: () => {
+      if (!win || win.isDestroyed()) return [];
+      const match = /^window:(\d+):/.exec(win.getMediaSourceId());
+      return match ? [Number(match[1])] : [];
+    },
     onUpdate: (windows) => {
       avoidObstacles = windows;
       scheduleAvoidCheck();

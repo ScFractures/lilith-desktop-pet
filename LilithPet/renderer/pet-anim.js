@@ -5,6 +5,7 @@ import {
   resetMorphs,
   setMorph,
 } from './rig.js';
+import { createPoseSafety } from './pose-safety.js';
 
 // Procedural skeletal animation for Lilith v5. The rig is a Koikatsu-style
 // skeleton, so motions are composed from a small set of root-space axes instead
@@ -81,6 +82,7 @@ export function createPetAnimator(rig, options = {}) {
   // the upper arms need a deeper drop and the forward/back swing happens around
   // the vertical (Y) axis instead of X. Its skirt is also much wider, so the
   // hands need a shallower drop to hang clear of it.
+  const safety = options.poseSafety === false ? null : createPoseSafety(rig);
   const sideArms = deepseek;
   const armDropBase = deepseek ? 44 : 40;
 
@@ -103,6 +105,11 @@ export function createPetAnimator(rig, options = {}) {
   // Skirt chains are named スカート_<depth>_<chain>, so the 16 swing roots are
   // the depth-0 bones, not every depth of chain 0.
   const skirtRoots = boneNames.filter((name) => /^スカート_0_\d+$/.test(name));
+  const skirtFront = new Map(skirtRoots.map(name => {
+    const b = rig.bones.get(name)[0];
+    const p = rig.root.worldToLocal(b.getWorldPosition(b.position.clone()));
+    return [name, p.z];
+  }));
   const tailRoots = deepseek ? boneNames.filter((name) => /^尾巴(001)?$/.test(name)) : [];
   const hairRoots = deepseek
     ? boneNames.filter((name) => /^(アホ毛1|後髪1[LR]?|側髪1[LR])$/.test(name))
@@ -135,6 +142,7 @@ export function createPetAnimator(rig, options = {}) {
   };
 
   let time = 0;
+  let previousRotations = new Map();
   let walk = 0;
   let talk = 0;
   let sleepLevel = 0;
@@ -153,6 +161,7 @@ export function createPetAnimator(rig, options = {}) {
   let blinkTimer = 2 + Math.random() * 3;
 
   function update(dt, ctx = {}) {
+    dt = Math.min(0.05, Math.max(0, Number(dt) || 0));
     time += dt;
 
     const requested = typeof ctx.motion === 'string' ? ctx.motion : null;
@@ -167,9 +176,10 @@ export function createPetAnimator(rig, options = {}) {
 
     const sitTarget = ctx.sitting && !ctx.dragging && !ctx.falling ? 1 : 0;
     sitLevel += (sitTarget - sitLevel) * Math.min(1, dt * 7);
-    const walkTarget = ctx.walking && !sitTarget ? 1 : 0;
+    const airborne = ctx.dragging || ctx.falling || (ctx.jumpPhase && ctx.jumpPhase !== 'idle');
+    const walkTarget = ctx.walking && !sitTarget && !airborne && motion !== 'run' ? 1 : 0;
     const talkTarget = ctx.talking ? 1 : 0;
-    const sleepTarget = ctx.sleeping ? 1 : 0;
+    const sleepTarget = ctx.sleeping && !sitTarget && !airborne ? 1 : 0;
     const dragTarget = (ctx.dragging || ctx.falling) ? 1 : 0;
     // Only a real drag gets a carried pose; falling keeps the old spread-arm
     // flail, so the two share dragLevel but not heldLevel.
@@ -228,7 +238,7 @@ export function createPetAnimator(rig, options = {}) {
     const gait = (walkPhase / TAU) % 1;
     const stride = Math.sin(gait * TAU);
     const strideCos = Math.cos(gait * TAU);
-    const idle = 1 - Math.max(walk, sleepLevel, talk * 0.15, act);
+    const idle = 1 - Math.max(walk, sleepLevel, talk * 0.15, act, dragLevel, sitLevel, jumpAirLevel, jumpCrouchLevel);
     const breathe = Math.sin(time * (sleepLevel > 0.5 ? 1.05 : 1.65));
     const breathAmp = 0.34 * (1 - walk * 0.35);
     const gesture = Math.sin(time * 4.4);
@@ -240,9 +250,9 @@ export function createPetAnimator(rig, options = {}) {
     // Carried around the waist she folds over the carrier's arms, so the chest
     // and upper spine take the bend while the hips and legs keep hanging.
     add('上半身2', breathe * breathAmp + 2.2 * walk + 3.4 * sleepLevel + 2 * handHeld
-      + 22 * waistHeld, 0, 0);
+      + 14 * waistHeld, 0, 0);
     add('上半身',
-      breathe * breathAmp * 0.5 + 2.8 * walk + 3.2 * sleepLevel + 52 * waistHeld,
+      breathe * breathAmp * 0.5 + 2.8 * walk + 3.2 * sleepLevel + 30 * waistHeld,
       -strideCos * 3.2 * walk,
       -stride * 1.2 * walk + Math.sin(time * 0.63) * 0.4 * idle + 3.5 * handHeld * heldLean
     );
@@ -261,14 +271,14 @@ export function createPetAnimator(rig, options = {}) {
     // Head: stabilized against the body, with walk bob, talk nods and sleep droop
     add('首',
       1.4 * talkArm * Math.sin(time * 2.4) + 5.2 * sleepLevel - 1.2 * dragLevel
-        - 1.4 * walk + 2.5 * handHeld + 18 * waistHeld,
+        - 1.4 * walk + 2.5 * handHeld + 2 * waistHeld,
       -strideCos * 1.4 * walk + 2.2 * talkArm * Math.sin(time * 1.3),
       2.4 * sleepLevel
     );
     add('頭',
       breathe * 0.24 + Math.sin(gait * TAU * 2) * 0.9 * walk
         + 2.4 * talkArm * Math.sin(time * 6.2) - 2.2 * talkArm
-        + 15 * sleepLevel + 3.5 * patLevel - 2.5 * dragLevel - 1.2 * walk + 12 * waistHeld,
+        + 15 * sleepLevel + 3.5 * patLevel - 2.5 * dragLevel - 1.2 * walk - 8 * waistHeld,
       Math.sin(time * 0.37) * 4.2 * idle - strideCos * 1.8 * walk
         + 4.4 * talkArm * Math.sin(time * 1.7) + 5.5 * patLevel,
       Math.sin(time * 0.61) * 1.7 * idle - stride * 1.2 * walk
@@ -518,8 +528,10 @@ export function createPetAnimator(rig, options = {}) {
     const hairDrive = Math.max(walk, run * 1.3);
     for (let i = 0; i < skirtRoots.length; i += 1) {
       const phase = gait * TAU + i * 0.5;
+      const flexion = Math.max(0, -(acc.get('左足')?.x || 0), -(acc.get('右足')?.x || 0));
+      const fabricLift = skirtFront.get(skirtRoots[i]) > 0 ? Math.min(78, flexion * 0.8) : 0;
       add(skirtRoots[i],
-        Math.sin(phase) * 2.6 * hairDrive + Math.sin(time * 1.15 + i) * 0.45 * idle
+        -fabricLift + Math.sin(phase) * 2.6 * hairDrive + Math.sin(time * 1.15 + i) * 0.45 * idle
           + Math.sin(time * 9 + i) * 2.5 * jumpAirLevel,
         0,
         Math.cos(phase) * 1.6 * hairDrive + Math.sin(time * 0.9 + i * 0.6) * 0.4 * idle
@@ -566,8 +578,8 @@ export function createPetAnimator(rig, options = {}) {
       for (const [side, sign] of [['左', 1], ['右', -1]]) {
         // Front: horizontal thighs and alternating pendulum-like shins.
         // Curl: knees against the chest, feet tucked close to the seat.
-        pose(side + '足', curl ? -118 : -88, 0, sign * (curl ? 2 : 4));
-        pose(side + 'ひざ', curl ? 142 : 88 + sign * swing * 15);
+        pose(side + '足', curl ? -106 : -88, 0, sign * (curl ? 2 : 4));
+        pose(side + 'ひざ', curl ? 128 : 88 + sign * swing * 15);
         pose(side + '足首', curl ? 14 : 10 + sign * swing * 5);
         pose(side + 'つま先', curl ? 0 : 6);
         pose(side + '肩', curl ? 5 : 0, 0, sign * 2);
@@ -584,7 +596,7 @@ export function createPetAnimator(rig, options = {}) {
       if (curl) {
         // Per-rig reach calibrated against the knee joints: both hands wrap
         // around the raised knees, rather than hovering beside the torso.
-        const reach = deepseek ? [-22, -84, 65, -140] : [-40, 72, 59, -128];
+        const reach = deepseek ? [-22, -84, 65, -124] : [-40, 72, 59, -120];
         for (const [side, sign] of [['左', 1], ['右', -1]]) {
           pose(side + '腕', reach[0], sign * reach[1], sign * reach[2]);
           pose(side + 'ひじ', reach[3]);
@@ -593,12 +605,38 @@ export function createPetAnimator(rig, options = {}) {
       // Lift the front fabric with the thighs rather than leaving the skirt
       // pointing straight down through both knees.
       for (const name of skirtRoots) {
-        const bone = rig.bones.get(name)[0];
-        const v = bone.getWorldPosition(bone.position.clone());
-        rig.root.worldToLocal(v);
-        if (v.z > 0) pose(name, curl ? -68 : -58);
+        if (skirtFront.get(name) > 0) pose(name, curl ? -82 : -72);
       }
     }
+
+    // Anatomical flexion limits apply AFTER additive layers. Otherwise run +
+    // walk, landing + carry, or talking + headpat can hyperextend a joint.
+    for (const [name, rotation] of acc) {
+      let min = -180, max = 180;
+      if (/^[左右]ひざ$/.test(name)) [min, max] = [0, 138];
+      else if (/^[左右]ひじ$/.test(name)) [min, max] = [-135, 0];
+      else if (/^[左右]足$/.test(name)) [min, max] = [-110, 38];
+      else if (/^[左右]足首$/.test(name)) [min, max] = [-32, 42];
+      else if (/^[左右]手首$/.test(name)) [min, max] = [-55, 55];
+      else if (name === '首' || name === '頭') [min, max] = [-30, 35];
+      rotation.x = Math.max(min, Math.min(max, rotation.x));
+      const previous = previousRotations.get(name);
+      if (previous) {
+        const maxStep = dt * (/^[左右](ひざ|足|足首)$/.test(name) ? 600 : 420);
+        for (const axis of ['x', 'y', 'z']) {
+          rotation[axis] = previous[axis] + Math.max(-maxStep, Math.min(maxStep, rotation[axis] - previous[axis]));
+        }
+      }
+    }
+    // Retain fading layers when an action stops (e.g. releasing a carried pet).
+    for (const [name, previous] of previousRotations) {
+      if (acc.has(name)) continue;
+      const step = dt * 420;
+      const next = {};
+      for (const axis of ['x', 'y', 'z']) next[axis] = Math.sign(previous[axis]) * Math.max(0, Math.abs(previous[axis]) - step);
+      if (Math.abs(next.x) + Math.abs(next.y) + Math.abs(next.z) > 0.001) acc.set(name, next);
+    }
+    previousRotations = new Map([...acc].map(([name, value]) => [name, { ...value }]));
 
     for (const [name, rotation] of acc) {
       const list = rig.bones.get(name);
@@ -614,11 +652,18 @@ export function createPetAnimator(rig, options = {}) {
       }
     }
 
+    safety?.solve();
+
     // Face: blinking, speech syllables, sleepy eyes, and a few reactions
     const syllable = Math.max(0, Math.sin(time * 10.8 + Math.sin(time * 4.1) * 2.2));
     const mouth = talk * (1 - sleepLevel) * (0.1 + 0.58 * Math.pow(syllable, 1.5));
     resetMorphs(rig);
-    setMorph(rig, 'まばたき', Math.max(sleepLevel * 0.98, blinkValue));
+    const eyeClosure = Math.max(sleepLevel * 0.98, blinkValue);
+    // DeepSeek's neutral lids are narrow. Invert a little of its authored
+    // blink, fading the correction out for closed/smiling eyes. Keep other
+    // models and the full blink/sleep endpoints unchanged.
+    const eyeOpening = deepseek ? 0.18 * (1 - eyeClosure) * (1 - patLevel) : 0;
+    setMorph(rig, 'まばたき', eyeClosure - eyeOpening, { min: deepseek ? -0.18 : 0 });
     setMorph(rig, 'あ', mouth);
     setMorph(rig, 'い', talk * (1 - sleepLevel) * 0.1 * (0.5 + 0.5 * Math.sin(time * 7.3 + 1.1)));
     setMorph(rig, '笑い', 0.78 * patLevel);
@@ -640,7 +685,7 @@ export function createPetAnimator(rig, options = {}) {
         rig.root.worldToLocal(v);
         if (v.y < minY) minY = v.y;
       }
-      footLift = Math.max(0, minY - restFootY) * rig.root.scale.y * groundJump;
+      footLift = Math.max(0, minY - restFootY) * rig.root.scale.y;
     }
 
     // Root motion, as fractions of body height. The caller applies the drop and
@@ -691,6 +736,7 @@ export function createPetAnimator(rig, options = {}) {
     blinkPhase = -1;
     blinkTimer = 2 + Math.random() * 3;
     acc.clear();
+    previousRotations.clear();
   }
 
   return { update, reset, rig };

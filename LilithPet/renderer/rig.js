@@ -251,8 +251,11 @@ export function resetAllBones(rig) {
   }
 }
 
-export function setMorph(rig, name, value) {
-  const v = Math.max(0, Math.min(1, Number(value) || 0));
+export function setMorph(rig, name, value, { min = 0 } = {}) {
+  // Most expressions are 0..1. A model-specific eyelid correction may opt
+  // into a small negative weight to open the lids beyond the authored rest.
+  const lower = Math.max(-1, Math.min(0, Number(min) || 0));
+  const v = Math.max(lower, Math.min(1, Number(value) || 0));
   for (const mesh of rig.morphMeshes) {
     const index = mesh.morphTargetDictionary[name];
     if (index === undefined) continue;

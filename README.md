@@ -12,7 +12,7 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS double-click launcher (must stay next to LilithPet/)
 ├── Lilith 桌宠.cmd       # Windows launcher (double-click; must stay next to LilithPet/)
 ├── Lilith/               # original 3D model source (FBX + textures)
-└── Deepseek_M/           # DeepSeek M model source (FBX + textures)
+└── Deepseek_M/           # Deepseek_Mcdonald model source (FBX + textures)
 ```
 
 ## Getting started
@@ -94,9 +94,9 @@ Messages go only to the Base URL of the custom model you selected. If you used a
 
 ## Models
 
-Four models are included: classic Lilith (`LilithPet/assets/lilith.glb`), the rigged and animated Lilith v5 (`LilithPet/assets/lilith_v5.glb`), DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`) and the rigged DeepSeek Girl v4 (`LilithPet/assets/deepseek_v4.glb`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch. The two rigged models also support the **Model studio** for expressions, outfit parts and accessories.
+Five models are included: Lilith (`LilithPet/assets/lilith.glb`, source in `Lilith/`), Lilith_3D (`LilithPet/assets/lilith_v5.glb`), Deepseek_3D (`LilithPet/assets/deepseek_v4.glb`), Deepseek_Mcdonald (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`) and Deepseek (`LilithPet/assets/deepseek.glb`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch. The two rigged models also support the **Model studio** for expressions, outfit parts and accessories.
 
-Each character has its own standalone voice and AI persona: Lilith is gentle, poetic and playful; DeepSeek M has a calm, concise, analytical persona with a dry sense of humor. Switching models swaps the AI system prompt and all local lines; chat conversations stay available in the history panel.
+Each character has its own standalone voice and AI persona: Lilith is gentle, poetic and playful; Deepseek has a calm, concise, analytical persona with a dry sense of humor. Switching models swaps the AI system prompt and all local lines; chat conversations stay available in the history panel.
 
 To regenerate a GLB from its source file with Blender 4.x or newer:
 
