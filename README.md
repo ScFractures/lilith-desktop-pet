@@ -12,7 +12,7 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS double-click launcher (must stay next to LilithPet/)
 ├── Lilith 桌宠.cmd       # Windows launcher (double-click; must stay next to LilithPet/)
 ├── Lilith/               # original 3D model source (FBX + textures)
-└── Deepseek_M/           # DeepSeek M model source (FBX + textures)
+└── Deepseek_M/           # Deepseek_Mcdonald model source (FBX + textures)
 ```
 
 ## Getting started
@@ -100,9 +100,9 @@ Messages go only to the provider you selected: the Qoder CLI for Qoder models, o
 
 ## Models
 
-Two characters are included: Lilith (`LilithPet/assets/lilith.glb`, source in `Lilith/`) and DeepSeek M (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`). Rigged, fully animated variants are also bundled as `lilith_v5.glb`, `deepseek_v4.glb` and `deepseek_winter.glb`. Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch.
+Six models are included: Lilith (`LilithPet/assets/lilith.glb`, source in `Lilith/`), Lilith_3D (`lilith_v5.glb`), Deepseek_3D (`deepseek_v4.glb`), Deepseek_Mcdonald (`deepseek_m.glb`, source in `Deepseek_M/`), Deepseek_Winter (`deepseek_winter.glb`) and Deepseek (`deepseek.glb`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch. Lilith_3D and Deepseek_3D are rigged and support the model studio and window perching; the others are static models.
 
-Each character has its own local voice and persona: Lilith is gentle, poetic and playful; DeepSeek M has a calm, concise, analytical persona with a dry sense of humor. Switching models swaps the local lines and persona. The model used by the Qoder chat window is selected independently inside that window.
+Each character has its own local voice and persona: Lilith is gentle, poetic and playful; Deepseek has a calm, concise, analytical persona with a dry sense of humor. Switching models swaps the local lines and persona. The model used by the Qoder chat window is selected independently inside that window.
 
 To regenerate a GLB from its source file with Blender 4.x or newer:
 

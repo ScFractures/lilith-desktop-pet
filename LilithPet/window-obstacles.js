@@ -5,11 +5,28 @@ const path = require('path');
 
 const SCRIPT = path.join(__dirname, 'window-obstacles.jxa');
 
+// Keep filtering window-specific: Electron utility/chat windows share the pet's
+// main-process PID and must remain obstacles and possible perching targets.
+function filterWindowObstacles(list, { excludePids = [], excludeWindowIds = [] } = {}) {
+  const pids = new Set(excludePids.map(Number));
+  const ids = new Set(excludeWindowIds.map(Number));
+  const windows = [];
+  for (const item of list) {
+    if (!item || pids.has(Number(item.pid)) || ids.has(Number(item.id))) continue;
+    const { x, y, width, height } = Object.fromEntries(
+      ['x', 'y', 'width', 'height'].map(key => [key, Number(item[key])])
+    );
+    if (![x, y, width, height].every(Number.isFinite)) continue;
+    if (width < 40 || height < 40) continue;
+    windows.push({ id: item.id, x, y, width, height });
+  }
+  return windows;
+}
+
 // macOS only for now: CGWindowList gives current-Space, on-screen window bounds
 // without needing Accessibility or capturing any window contents.
-function createWindowObstacleWatcher({ excludePids = [], onUpdate }) {
+function createWindowObstacleWatcher({ excludePids = [], excludeWindowIds = () => [], onUpdate }) {
   if (process.platform !== 'darwin') return null;
-  const excluded = new Set(excludePids.map(Number));
   let child = null;
   let stopped = false;
   let restartTimer = null;
@@ -17,20 +34,8 @@ function createWindowObstacleWatcher({ excludePids = [], onUpdate }) {
 
   function publish(list) {
     if (!Array.isArray(list) || typeof onUpdate !== 'function') return;
-    const windows = [];
-    for (const item of list) {
-      if (!item) continue;
-      const pid = Number(item.pid);
-      if (excluded.has(pid)) continue;
-      const x = Number(item.x);
-      const y = Number(item.y);
-      const width = Number(item.width);
-      const height = Number(item.height);
-      if (![x, y, width, height].every(Number.isFinite)) continue;
-      if (width < 40 || height < 40) continue;
-      windows.push({ id: item.id, x, y, width, height });
-    }
-    onUpdate(windows);
+    const ids = typeof excludeWindowIds === 'function' ? excludeWindowIds() : excludeWindowIds;
+    onUpdate(filterWindowObstacles(list, { excludePids, excludeWindowIds: ids }));
   }
 
   function scheduleRestart() {
@@ -86,5 +91,6 @@ function createWindowObstacleWatcher({ excludePids = [], onUpdate }) {
 
 module.exports = {
   createWindowObstacleWatcher,
+  filterWindowObstacles,
   supported: process.platform === 'darwin',
 };

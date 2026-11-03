@@ -12,7 +12,7 @@ Lilith-Desktop-Pet/
 ├── Lilith 桌宠.app       # macOS 双击启动器（需与 LilithPet 放在同一目录）
 ├── Lilith 桌宠.cmd       # Windows 双击启动器（需与 LilithPet 同目录）
 ├── Lilith/               # 原版 3D 模型源文件（FBX + 贴图）
-└── Deepseek_M/           # DeepSeek M 模型源文件（FBX + 贴图）
+└── Deepseek_M/           # Deepseek_Mcdonald 模型源文件（FBX + 贴图）
 ```
 
 ## 运行
@@ -100,9 +100,9 @@ npm start
 
 ## 模型
 
-应用内置两个角色：莉莉丝（`LilithPet/assets/lilith.glb`，源文件在 `Lilith/`）和 DeepSeek M（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`），另附带骨骼动画版本 `lilith_v5.glb`、`deepseek_v4.glb` 和 `deepseek_winter.glb`。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。
+应用内置六个模型：Lilith（`LilithPet/assets/lilith.glb`，源文件在 `Lilith/`）、Lilith_3D（`lilith_v5.glb`）、Deepseek_3D（`deepseek_v4.glb`）、Deepseek_Mcdonald（`deepseek_m.glb`，源文件在 `Deepseek_M/`）、Deepseek_Winter（`deepseek_winter.glb`）和 Deepseek（`deepseek.glb`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。Lilith_3D 与 Deepseek_3D 带骨骼，支持模型工坊和窗口栖息；其余为静态模型。
 
-每个角色都有独立的本地台词和人格：莉莉丝温柔、诗意、带点调皮；DeepSeek M 冷静、简洁、偏理性，带一点克制的冷幽默。切换模型会同时切换本地台词和人格。Qoder 对话窗口使用的模型在该窗口里单独选择，不受这里影响。
+每个角色都有独立的本地台词和人格：莉莉丝温柔、诗意、带点调皮；Deepseek 冷静、简洁、偏理性，带一点克制的冷幽默。切换模型会同时切换本地台词和人格。Qoder 对话窗口使用的模型在该窗口里单独选择，不受这里影响。
 
 如需用 Blender 4.x 或更高版本从源文件重新生成 GLB：
 

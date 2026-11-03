@@ -3,10 +3,14 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createRig, collectLookEntries, lookSet, prepareModelMaterials } from './rig.js';
 import { createPetAnimator } from './pet-anim.js';
+import { createPoseBounds, fitPoseCamera } from './pose-bounds.mjs';
 
-const BOTTOM_INSET = 24;
+const BOTTOM_INSET = 48;
 const FOV = 30;
 const PET_HEIGHT_FRACTION = 0.613;
+// Keep model height unchanged; extra width is transparent animation space.
+let poseBounds = null;
+let framingZoom = 1;
 // Camera distance derived from FOV so the pet's pixel height stays PET_HEIGHT_FRACTION of the
 // window height; the headroom above is for jumping
 const CAM_DIST = 1 / PET_HEIGHT_FRACTION / (2 * Math.tan((FOV / 2) * (Math.PI / 180)));
@@ -117,7 +121,7 @@ window.__pet = state;
 let L = null;
 let phrases = {};
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_v5: 'lilith', deepseek_m: 'deepseek_m', deepseek_winter: 'deepseek_m', deepseek_v4: 'deepseek_m' };
+const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_v5: 'lilith', deepseek_m: 'deepseek_m', deepseek_winter: 'deepseek_m', deepseek_v4: 'deepseek_m', deepseek: 'deepseek_m' };
 // Some FBX exports aren't aligned to their local +X; nudge the winter model toward its left 10°
 const MODEL_YAW_OFFSET = { deepseek_winter: (10 * Math.PI) / 180 };
 // The rigged GLBs are exported facing +Z, while the older assets face +X
@@ -263,6 +267,8 @@ async function loadModel(key) {
     lookEntries = collectLookEntries(state.rig, key);
     applyLook(savedLook);
   }
+  poseBounds = createPoseBounds(pet);
+  framingZoom = 1;
   state.talkLeft = 0;
   state.patLeft = 0;
 
@@ -275,6 +281,7 @@ function layout() {
   const h = window.innerHeight;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(w, h);
+  camera.zoom = 1;
   camera.aspect = w / h;
   const k = (h * PET_HEIGHT_FRACTION) / 1.0;
   const cy = (h / 2 - BOTTOM_INSET) / k;
@@ -291,7 +298,8 @@ layout();
 const tmpBox = new THREE.Box3();
 const corner = new THREE.Vector3();
 function petScreenRect() {
-  tmpBox.setFromObject(pet);
+  if (poseBounds) poseBounds(tmpBox);
+  else tmpBox.setFromObject(pet);
   let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
   const w = window.innerWidth;
   const h = window.innerHeight;
@@ -561,6 +569,12 @@ function doPat() {
 }
 
 function doTouch(zone) {
+  // A gentle head pat uses the sleep-specific response without waking her.
+  // Other touch zones retain their normal wake-up behavior.
+  if (zone === 'head' && state.mode === 'sleeping') {
+    doPat();
+    return;
+  }
   if (state.mode === 'sleeping') wakeUp();
   if (state.mode === 'walking') {
     window.pet.walkStop();
@@ -727,7 +741,7 @@ function update(dt, t) {
       const lean = state.model === 'lilith_v5' ? -1 : 1;
       dragRoll = waist ? 0 : lean * 0.21;
       dragPitch = waist ? 0.06 : 0.13;
-      stretch = waist ? 0.05 : 0.04;
+      stretch = 0; // Bone-driven carry: do not stretch the body or clothing.
     } else {
       dragRoll = Math.sin(t * 5.2) * 0.10;
       dragPitch = 0.10;
@@ -735,7 +749,7 @@ function update(dt, t) {
     }
   } else if (state.mode === 'falling') {
     dragPitch = 0.05;
-    stretch = 0.06;
+    stretch = RIGGED_MODELS.has(state.model) ? 0 : 0.06;
   }
 
   pet.rotation.y = state.yaw;
@@ -745,8 +759,9 @@ function update(dt, t) {
   const sleeping = state.mode === 'sleeping';
   const breath = state.mode === 'sitting' ? 0
     : Math.sin(t * (sleeping ? 1.05 : 1.7)) * (sleeping ? 0.017 : 0.011);
-  const sy = 1 + s.x + breath + stretch;
-  const sxz = 1 - (s.x + breath + stretch) * 0.55;
+  const deformation = RIGGED_MODELS.has(state.model) ? 0 : s.x + breath + stretch;
+  const sy = 1 + deformation;
+  const sxz = 1 - deformation * 0.55;
   holder.scale.set(sxz, sy, sxz);
 
   // Skeletal life: breathing, walk cycle, talking gestures, sleep and drag poses
@@ -769,6 +784,13 @@ function update(dt, t) {
     if (RIGGED_MODELS.has(state.model) && rootMotion) bobY += rootMotion.bob;
   }
   pet.position.y = bobY + state.hopY;
+
+  // Reset the reference projection before fitting this frame's animated pose.
+  // This runs before hit testing, bubbles and seat anchors so all use the same
+  // projection as rendering (no invisible limbs or stale clickable regions).
+  if (poseBounds) {
+    framingZoom = fitPoseCamera(camera, poseBounds(tmpBox), window.innerWidth, window.innerHeight, dt, framingZoom);
+  }
 
   // blob shadow
   const lift = state.hopY;

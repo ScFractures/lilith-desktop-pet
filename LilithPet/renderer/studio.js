@@ -19,8 +19,8 @@ const DEG = Math.PI / 180;
 const MODEL_HEIGHT = 1.8;
 const ACCENT = 0xd97898;
 const MODEL_DEFS = {
-  lilith_v5: { brand: 'Lilith', ver: 'v5', asset: 'assets/lilith_v5.glb' },
-  deepseek_v4: { brand: 'DeepSeek', ver: 'v4', asset: 'assets/deepseek_v4.glb' },
+  lilith_v5: { brand: 'Lilith_3D', ver: 'v5', asset: 'assets/lilith_v5.glb' },
+  deepseek_v4: { brand: 'Deepseek_3D', ver: 'v4', asset: 'assets/deepseek_v4.glb' },
 };
 const MODEL_KEY = MODEL_DEFS[new URLSearchParams(location.search).get('model')]
   ? new URLSearchParams(location.search).get('model')
