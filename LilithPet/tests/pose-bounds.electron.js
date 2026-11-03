@@ -18,7 +18,7 @@ app.whenReady().then(async () => {
     webPreferences: { preload: path.join(base, 'preload.js'), contextIsolation: true } });
   win.webContents.on('console-message', (_event, ...args) => console.log('[renderer]', ...args));
   await win.loadFile(path.join(base, 'renderer/index.html'));
-  for (const model of ['lilith_v5', 'deepseek_v4', 'lilith', 'deepseek_m', 'deepseek']) {
+  for (const model of ['lilith_v5', 'deepseek_v4', 'lilith', 'deepseek_m', 'deepseek_winter', 'deepseek']) {
     if (model !== 'lilith_v5') win.webContents.send('pet-model', model);
     const deadline = Date.now() + 30000;
     while (!await win.webContents.executeJavaScript(`!!(window.__pet.loaded && window.__pet.model === ${JSON.stringify(model)})`)) {

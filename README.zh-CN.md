@@ -94,7 +94,7 @@ npm start
 
 ## 模型
 
-应用内置五个模型：Lilith（`LilithPet/assets/lilith.glb`，源文件在 `Lilith/`）、Lilith_3D（`LilithPet/assets/lilith_v5.glb`）、Deepseek_3D（`LilithPet/assets/deepseek_v4.glb`）、Deepseek_Mcdonald（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）和 Deepseek（`LilithPet/assets/deepseek.glb`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。两个骨骼模型还支持「当前模型工坊」，可调整表情、服装部件和饰品。
+应用内置六个模型：Lilith（`LilithPet/assets/lilith.glb`，源文件在 `Lilith/`）、Lilith_3D（`LilithPet/assets/lilith_v5.glb`）、Deepseek_3D（`LilithPet/assets/deepseek_v4.glb`）、Deepseek_Mcdonald（`LilithPet/assets/deepseek_m.glb`，源文件在 `Deepseek_M/`）、Deepseek_Winter（`LilithPet/assets/deepseek_winter.glb`）和 Deepseek（`LilithPet/assets/deepseek.glb`）。在右键菜单或托盘菜单的「模型」里切换，选择会保存在本地，下次启动自动恢复。两个骨骼模型还支持「当前模型工坊」，可调整表情、服装部件和饰品。
 
 每个角色都有独立的人格和声音：莉莉丝温柔、诗意、带点调皮；Deepseek 冷静、简洁、偏理性，带一点克制的冷幽默。切换模型会同时切换 AI 系统提示词和所有本地台词；聊天记录仍保留在历史面板里。
 

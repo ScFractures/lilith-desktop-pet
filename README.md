@@ -94,7 +94,7 @@ Messages go only to the Base URL of the custom model you selected. If you used a
 
 ## Models
 
-Five models are included: Lilith (`LilithPet/assets/lilith.glb`, source in `Lilith/`), Lilith_3D (`LilithPet/assets/lilith_v5.glb`), Deepseek_3D (`LilithPet/assets/deepseek_v4.glb`), Deepseek_Mcdonald (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`) and Deepseek (`LilithPet/assets/deepseek.glb`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch. The two rigged models also support the **Model studio** for expressions, outfit parts and accessories.
+Six models are included: Lilith (`LilithPet/assets/lilith.glb`, source in `Lilith/`), Lilith_3D (`LilithPet/assets/lilith_v5.glb`), Deepseek_3D (`LilithPet/assets/deepseek_v4.glb`), Deepseek_Mcdonald (`LilithPet/assets/deepseek_m.glb`, source in `Deepseek_M/`), Deepseek_Winter (`LilithPet/assets/deepseek_winter.glb`) and Deepseek (`LilithPet/assets/deepseek.glb`). Switch between them in the **Model** submenu of the right-click or tray menu — the choice is saved locally and restored on the next launch. The two rigged models also support the **Model studio** for expressions, outfit parts and accessories.
 
 Each character has its own standalone voice and AI persona: Lilith is gentle, poetic and playful; Deepseek has a calm, concise, analytical persona with a dry sense of humor. Switching models swaps the AI system prompt and all local lines; chat conversations stay available in the history panel.
 

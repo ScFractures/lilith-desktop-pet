@@ -19,7 +19,7 @@ if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-c
 // Height is unchanged so the pet retains its previous on-screen size.
 const WINDOW_SIZES = { small: [410, 458], medium: [520, 560], large: [670, 725] };
 // Model key -> i18n label key. The GLB files live in LilithPet/assets/.
-const MODELS = { lilith: 'modelLilith', lilith_v5: 'modelLilithV5', deepseek_v4: 'modelDeepseekV4', deepseek_m: 'modelDeepseekMcdonald', deepseek: 'modelDeepseek' };
+const MODELS = { lilith: 'modelLilith', lilith_v5: 'modelLilithV5', deepseek_v4: 'modelDeepseekV4', deepseek_m: 'modelDeepseekMcdonald', deepseek_winter: 'modelDeepseekWinter', deepseek: 'modelDeepseek' };
 const STUDIO_MODELS = new Set(['lilith_v5', 'deepseek_v4']);
 const DEFAULT_MODEL = 'lilith';
 const FLOOR_INSET = 48;

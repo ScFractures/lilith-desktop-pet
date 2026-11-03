@@ -120,7 +120,9 @@ window.__pet = state;
 let L = null;
 let phrases = {};
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_v5: 'lilith', deepseek_m: 'deepseek_m', deepseek_v4: 'deepseek_m', deepseek: 'deepseek_m' };
+const PERSONA_BY_MODEL = { lilith: 'lilith', lilith_v5: 'lilith', deepseek_m: 'deepseek_m', deepseek_winter: 'deepseek_m', deepseek_v4: 'deepseek_m', deepseek: 'deepseek_m' };
+// Some FBX exports aren't aligned to their local +X; nudge the winter model toward its left 10°
+const MODEL_YAW_OFFSET = { deepseek_winter: (10 * Math.PI) / 180 };
 // The rigged GLBs are exported facing +Z, while the older assets face +X
 const MODEL_BASE_YAW = { lilith_v5: 0, deepseek_v4: 0 };
 const RIGGED_MODELS = new Set(['lilith_v5', 'deepseek_v4']);
